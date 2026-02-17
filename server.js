@@ -13,9 +13,11 @@ app.use(express.json());
 // Routes
 const bookingRoutes = require('./routes/bookingRoutes');
 const contactRoutes = require('./routes/contactRoute');
+const authRoutes = require('./routes/authRoutes');
 
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/contacts', contactRoutes);
+app.use('/api/auth', authRoutes);
 
 // Catch-all 404 for API routes
 app.use((req, res) => {
