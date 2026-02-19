@@ -52,6 +52,10 @@ const contactSchema = new mongoose.Schema({
     },
     respondedAt: {
         type: Date
+    },
+    employeeName: {
+        type: String,
+        default: ''
     }
 }, {
     timestamps: true

@@ -52,6 +52,28 @@ router.post('/', async (req, res) => {
     }
 });
 
+// PATCH pick a booking (assign to employee)
+router.patch('/:id/pick', async (req, res) => {
+    try {
+        const { employeeName } = req.body;
+        if (!employeeName) {
+            return res.status(400).json({ message: 'Employee name is required' });
+        }
+
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+
+        booking.employeeName = employeeName;
+        await booking.save();
+
+        res.json({ message: 'Lead picked successfully', booking });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // DELETE a booking
 router.delete('/:id', async (req, res) => {
     try {

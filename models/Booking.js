@@ -57,6 +57,10 @@ const BookingSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now
+    },
+    employeeName: {
+        type: String,
+        default: ''
     }
 });
 

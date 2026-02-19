@@ -130,6 +130,34 @@ router.patch('/:id/status', async (req, res) => {
     }
 });
 
+// PATCH pick a contact (assign to employee)
+router.patch('/:id/pick', async (req, res) => {
+    try {
+        const { employeeName } = req.body;
+        if (!employeeName) {
+            return res.status(400).json({ message: 'Employee name is required' });
+        }
+
+        const contact = await Contact.findById(req.params.id);
+        if (!contact) {
+            return res.status(404).json({ message: 'Contact message not found' });
+        }
+
+        contact.employeeName = employeeName;
+
+        // Optionally mark as read if it's currently new
+        if (contact.status === 'new') {
+            contact.status = 'read';
+        }
+
+        await contact.save();
+
+        res.json({ message: 'Lead picked successfully', contact });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // PUT update entire contact message (for admin edits/notes or partial lead completion)
 router.put('/:id', async (req, res) => {
     try {
