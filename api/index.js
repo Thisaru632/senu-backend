@@ -12,7 +12,7 @@ app.use(express.json());
 // Database Connection for Serverless
 let isConnected = false;
 const connectDB = async () => {
-    if (isConnected) return;
+    if (mongoose.connection.readyState === 1) return;
 
     if (!process.env.MONGO_URI) {
         console.error('CRITICAL: MONGO_URI is not defined in environment variables');
