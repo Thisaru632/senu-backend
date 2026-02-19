@@ -74,6 +74,28 @@ router.patch('/:id/pick', async (req, res) => {
     }
 });
 
+// PATCH update booking status
+router.patch('/:id/status', async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!status) {
+            return res.status(400).json({ message: 'Status is required' });
+        }
+
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+
+        booking.status = status;
+        await booking.save();
+
+        res.json({ message: 'Status updated successfully', booking });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // DELETE a booking
 router.delete('/:id', async (req, res) => {
     try {
