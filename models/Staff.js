@@ -8,12 +8,25 @@ const staffSchema = new mongoose.Schema({
         unique: true,
         trim: true
     },
+    fullName: {
+        type: String,
+        required: [true, 'Please provide a full name'],
+        trim: true
+    },
     email: {
         type: String,
         required: [true, 'Please provide an email'],
         unique: true,
         lowercase: true,
         trim: true
+    },
+    isOnline: {
+        type: Boolean,
+        default: false
+    },
+    lastLogout: {
+        type: Date,
+        default: null
     },
     password: {
         type: String,

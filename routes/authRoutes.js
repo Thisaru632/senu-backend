@@ -1,6 +1,8 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const Staff = require('../models/Staff');
+const Booking = require('../models/Booking');
+const Contact = require('../models/Contact');
 const router = express.Router();
 
 // Generate JWT
@@ -15,7 +17,7 @@ const generateToken = (id) => {
 // @access  Public (In a real app, this might be restricted to admins)
 router.post('/signup', async (req, res) => {
     try {
-        const { username, email, password } = req.body;
+        const { username, fullName, email, password } = req.body;
 
         const staffExists = await Staff.findOne({ $or: [{ email }, { username }] });
         if (staffExists) {
@@ -24,6 +26,7 @@ router.post('/signup', async (req, res) => {
 
         const staff = await Staff.create({
             username,
+            fullName,
             email,
             password
         });
@@ -32,6 +35,7 @@ router.post('/signup', async (req, res) => {
             res.status(201).json({
                 _id: staff._id,
                 username: staff.username,
+                fullName: staff.fullName,
                 email: staff.email,
                 token: generateToken(staff._id)
             });
@@ -53,15 +57,149 @@ router.post('/login', async (req, res) => {
         const staff = await Staff.findOne({ email }).select('+password');
 
         if (staff && (await staff.comparePassword(password))) {
+            // Mark as online
+            await Staff.findByIdAndUpdate(staff._id, { isOnline: true });
+
             res.json({
                 _id: staff._id,
                 username: staff.username,
+                fullName: staff.fullName,
                 email: staff.email,
                 token: generateToken(staff._id)
             });
         } else {
             res.status(401).json({ message: 'Invalid email or password' });
         }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Logout a staff member (mark as offline)
+// @route   POST /api/auth/logout
+// @access  Public
+router.post('/logout', async (req, res) => {
+    try {
+        const { email, username } = req.body;
+        const query = email ? { email } : { username };
+        await Staff.findOneAndUpdate(query, {
+            isOnline: false,
+            lastLogout: new Date()
+        });
+        res.json({ message: 'Logged out successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Mark a staff member as online (called on app load if already authenticated)
+// @route   POST /api/auth/mark-online
+// @access  Public
+router.post('/mark-online', async (req, res) => {
+    try {
+        const { email, username } = req.body;
+        const query = email ? { email } : { username };
+        await Staff.findOneAndUpdate(query, { isOnline: true });
+        res.json({ message: 'Marked as online' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Get all staff members with their performance stats
+// @route   GET /api/auth/employees
+// @access  Private (In a real app, use auth middleware)
+router.get('/employees', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+
+        const dateFilter = {};
+        if (startDate && endDate) {
+            dateFilter.createdAt = {
+                $gte: new Date(startDate),
+                $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999))
+            };
+        }
+
+        // Fetch all staff
+        const staffList = await Staff.find({}, 'username fullName email role isOnline lastLogout createdAt');
+
+        // Fetch stats for bookings
+        const bookingStats = await Booking.aggregate([
+            { $match: dateFilter },
+            {
+                $group: {
+                    _id: "$employeeName",
+                    total: { $sum: 1 },
+                    confirmed: { $sum: { $cond: [{ $eq: ["$status", "Confirmed"] }, 1, 0] } },
+                    pending: { $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] } },
+                    rejected: { $sum: { $cond: [{ $eq: ["$status", "Cancelled"] }, 1, 0] } }
+                }
+            }
+        ]);
+
+        // Fetch stats for contacts
+        const contactStats = await Contact.aggregate([
+            { $match: dateFilter },
+            {
+                $group: {
+                    _id: "$employeeName",
+                    total: { $sum: 1 },
+                    confirmed: { $sum: { $cond: [{ $eq: ["$status", "responded"] }, 1, 0] } },
+                    pending: { $sum: { $cond: [{ $eq: ["$status", "new"] }, 1, 0] } },
+                    rejected: { $sum: { $cond: [{ $eq: ["$status", "archived"] }, 1, 0] } }
+                }
+            }
+        ]);
+
+        // Merge stats with staff list
+        const performanceData = staffList.map(staff => {
+            const bStat = bookingStats.find(s => s._id === staff.fullName || s._id === staff.username) || { total: 0, confirmed: 0, pending: 0, rejected: 0 };
+            const cStat = contactStats.find(s => s._id === staff.fullName || s._id === staff.username) || { total: 0, confirmed: 0, pending: 0, rejected: 0 };
+
+            const total = bStat.total + cStat.total;
+            const confirmed = bStat.confirmed + cStat.confirmed;
+            const pending = bStat.pending + cStat.pending;
+            const rejected = bStat.rejected + cStat.rejected;
+            const notContacted = pending; // Simplified logic
+
+            return {
+                name: staff.fullName || staff.username,
+                username: staff.username,
+                email: staff.email,
+                isOnline: staff.isOnline || false,
+                lastLogout: staff.lastLogout || null,
+                total,
+                confirmed,
+                pending,
+                rejected,
+                notContacted,
+                rate: total > 0 ? (confirmed / total) * 100 : 0
+            };
+        });
+
+        // Fetch global lead stats
+        const totalLeads = await Booking.countDocuments(dateFilter) + await Contact.countDocuments(dateFilter);
+        const confirmedLeads = await Booking.countDocuments({ ...dateFilter, status: "Confirmed" }) + await Contact.countDocuments({ ...dateFilter, status: "responded" });
+        const pendingLeads = await Booking.countDocuments({ ...dateFilter, status: "Pending" }) + await Contact.countDocuments({ ...dateFilter, status: "new" });
+        const rejectedLeads = await Booking.countDocuments({ ...dateFilter, status: "Cancelled" }) + await Contact.countDocuments({ ...dateFilter, status: "archived" });
+
+        res.json({
+            performance: performanceData,
+            stats: {
+                totalLeads,
+                confirmedLeads,
+                pendingLeads,
+                rejectedLeads,
+                notContactedLeads: pendingLeads,
+                notFollowedYet: pendingLeads // Placeholder for now
+            },
+            packageStats: {
+                totalPackages: 0, // Need package model for this
+                packageBookings: totalLeads,
+                canceledBookings: rejectedLeads
+            }
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
