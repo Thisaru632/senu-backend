@@ -54,17 +54,31 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/auth', authRoutes);
 
-app.get('/', (req, res) => {
+// Health check and root route
+const rootHandler = (req, res) => {
     res.json({
         message: "Senu Cabs API is running!",
         status: "Healthy",
-        version: "1.0.0"
+        version: "1.0.0",
+        path: req.url
     });
-});
+};
+
+app.get('/', rootHandler);
+app.get('/api', rootHandler);
+app.get('/api/index', rootHandler);
 
 // Catch-all 404 for API routes
 app.use((req, res) => {
-    res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+    console.log(`404: ${req.method} ${req.url}`);
+    res.status(404).json({
+        message: `Route ${req.originalUrl} not found`,
+        debug: {
+            url: req.url,
+            path: req.path,
+            originalUrl: req.originalUrl
+        }
+    });
 });
 
 // Export the app for Vercel
