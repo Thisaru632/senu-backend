@@ -33,11 +33,12 @@ router.post('/signup', async (req, res) => {
 
         if (staff) {
             res.status(201).json({
+                message: 'Signup successful. Your account is pending approval by the Super Admin.',
                 _id: staff._id,
                 username: staff.username,
                 fullName: staff.fullName,
                 email: staff.email,
-                token: generateToken(staff._id)
+                status: staff.status
             });
         } else {
             res.status(400).json({ message: 'Invalid staff data' });
@@ -57,6 +58,15 @@ router.post('/login', async (req, res) => {
         const staff = await Staff.findOne({ email }).select('+password');
 
         if (staff && (await staff.comparePassword(password))) {
+            // Check if user is approved
+            if (staff.status !== 'active') {
+                return res.status(403).json({
+                    message: staff.status === 'pending'
+                        ? 'Your account is pending approval by the Super Admin.'
+                        : 'Your account has been rejected. Please contact the administrator.'
+                });
+            }
+
             // Mark as online
             await Staff.findByIdAndUpdate(staff._id, { isOnline: true });
 

@@ -49,7 +49,7 @@ const staffSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ['pending', 'active', 'rejected'],
-        default: 'active' // Default to active for existing/manual signups, but can be used for new registration flow
+        default: 'pending'
     }
 }, { timestamps: true });
 
