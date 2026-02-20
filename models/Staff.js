@@ -36,8 +36,20 @@ const staffSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['staff', 'admin'],
+        enum: ['staff', 'admin', 'superadmin'],
         default: 'staff'
+    },
+    permissions: {
+        dashboard: { type: Boolean, default: true },
+        leads: { type: Boolean, default: false },
+        cms: { type: Boolean, default: false },
+        userManagement: { type: Boolean, default: false },
+        reports: { type: Boolean, default: false }
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'active', 'rejected'],
+        default: 'active' // Default to active for existing/manual signups, but can be used for new registration flow
     }
 }, { timestamps: true });
 

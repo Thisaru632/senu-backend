@@ -5,11 +5,14 @@ const Contact = require('../models/Contact');
 // GET all contact messages
 router.get('/', async (req, res) => {
     try {
-        const { status, limit = 50, page = 1 } = req.query;
+        const { status, reason, limit = 50, page = 1 } = req.query;
 
         const filter = {};
         if (status) {
             filter.status = status;
+        }
+        if (reason) {
+            filter.reason = reason;
         }
 
         const contacts = await Contact.find(filter)

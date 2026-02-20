@@ -205,6 +205,62 @@ router.get('/employees', async (req, res) => {
     }
 });
 
+// @desc    Get all users for management
+// @route   GET /api/auth/users
+// @access  Public (should be Admin)
+router.get('/users', async (req, res) => {
+    try {
+        const users = await Staff.find({}, 'username fullName email role isOnline createdAt permissions status');
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Update user (role, permissions, or status)
+// @route   PUT /api/auth/users/:id
+router.get('/users/:id', async (req, res) => {
+    try {
+        const user = await Staff.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+router.put('/users/:id', async (req, res) => {
+    try {
+        const { role, permissions, status } = req.body;
+        const user = await Staff.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (role) user.role = role;
+        if (permissions) user.permissions = permissions;
+        if (status) user.status = status;
+
+        await user.save();
+        res.json({ message: 'User updated successfully', user });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Delete user
+// @route   DELETE /api/auth/users/:id
+router.delete('/users/:id', async (req, res) => {
+    try {
+        const user = await Staff.findByIdAndDelete(req.params.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 // @desc    Get user profile
 // @route   GET /api/auth/profile
 // @access  Private

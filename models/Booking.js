@@ -61,6 +61,27 @@ const BookingSchema = new mongoose.Schema({
     employeeName: {
         type: String,
         default: ''
+    },
+    customId: {
+        type: String,
+        unique: true
+    }
+});
+
+// Pre-save hook to generate customId
+BookingSchema.pre('save', async function () {
+    if (!this.customId) {
+        const lastBooking = await this.constructor.findOne({}, { customId: 1 }).sort({ createdAt: -1 });
+        let nextNumber = 1;
+
+        if (lastBooking && lastBooking.customId && lastBooking.customId.startsWith('BL')) {
+            const lastNumber = parseInt(lastBooking.customId.substring(2));
+            if (!isNaN(lastNumber)) {
+                nextNumber = lastNumber + 1;
+            }
+        }
+
+        this.customId = `BL${nextNumber.toString().padStart(3, '0')}`;
     }
 });
 

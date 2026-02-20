@@ -56,9 +56,40 @@ const contactSchema = new mongoose.Schema({
     employeeName: {
         type: String,
         default: ''
+    },
+    customId: {
+        type: String,
+        unique: true
     }
 }, {
     timestamps: true
+});
+
+// Pre-save hook to generate customId
+contactSchema.pre('save', async function () {
+    if (!this.customId) {
+        let prefix = 'OT';
+        if (this.reason === 'Complaint') prefix = 'CL';
+        else if (this.reason === 'Feedback') prefix = 'FB';
+        else if (this.reason === 'General Inquiry' || this.reason === 'General Enquiry') prefix = 'GI';
+
+        // Find the last record with the same prefix
+        const lastContact = await this.constructor.findOne(
+            { customId: new RegExp(`^${prefix}`) },
+            { customId: 1 }
+        ).sort({ createdAt: -1 });
+
+        let nextNumber = 1;
+        if (lastContact && lastContact.customId) {
+            const lastNumberStr = lastContact.customId.replace(prefix, '');
+            const lastNumber = parseInt(lastNumberStr);
+            if (!isNaN(lastNumber)) {
+                nextNumber = lastNumber + 1;
+            }
+        }
+
+        this.customId = `${prefix}${nextNumber.toString().padStart(3, '0')}`;
+    }
 });
 
 // Index for faster queries
