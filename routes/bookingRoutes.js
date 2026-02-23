@@ -20,6 +20,7 @@ router.post('/', async (req, res) => {
         tripType,
         pickupLocation,
         dropoffLocation,
+        destinations,
         dateTime,
         numberOfDays,
         maxPersons,
@@ -29,12 +30,16 @@ router.post('/', async (req, res) => {
         email
     } = req.body;
 
+    // Debug log — confirms what the backend received
+    console.log('[BOOKING] Received destinations:', destinations);
+
     const booking = new Booking({
         vehicleType,
         vehicleName,
         tripType,
         pickupLocation,
         dropoffLocation,
+        destinations: destinations || [],
         dateTime,
         numberOfDays,
         maxPersons,
@@ -46,6 +51,7 @@ router.post('/', async (req, res) => {
 
     try {
         const newBooking = await booking.save();
+        console.log('[BOOKING] Saved destinations:', newBooking.destinations);
         res.status(201).json(newBooking);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -91,6 +97,23 @@ router.patch('/:id/status', async (req, res) => {
         await booking.save();
 
         res.json({ message: 'Status updated successfully', booking });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// PATCH mark a booking as viewed
+router.patch('/:id/viewed', async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+
+        booking.isViewed = true;
+        await booking.save();
+
+        res.json({ message: 'Marked as viewed', booking });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

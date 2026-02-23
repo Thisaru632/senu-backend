@@ -21,6 +21,10 @@ const BookingSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    destinations: {
+        type: [String],
+        default: []
+    },
     dateTime: {
         type: Date,
         required: true
@@ -51,7 +55,7 @@ const BookingSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Pending', 'Confirmed', 'Cancelled', 'Rejected', 'Completed'],
+        enum: ['Pending', 'Confirmed', 'Cancelled', 'Rejected', 'Completed', 'Sent Inquiry'],
         default: 'Pending'
     },
     createdAt: {
@@ -65,6 +69,10 @@ const BookingSchema = new mongoose.Schema({
     customId: {
         type: String,
         unique: true
+    },
+    isViewed: {
+        type: Boolean,
+        default: false
     }
 });
 

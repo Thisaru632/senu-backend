@@ -4,6 +4,7 @@ const Staff = require('../models/Staff');
 const Booking = require('../models/Booking');
 const Contact = require('../models/Contact');
 const router = express.Router();
+const { protect, superAdminOnly } = require('../middleware/authMiddleware');
 
 // Generate JWT
 const generateToken = (id) => {
@@ -11,6 +12,67 @@ const generateToken = (id) => {
         expiresIn: '30d'
     });
 };
+
+// @desc    Get notification counts (unread leads)
+// @route   GET /api/auth/notifications/count
+router.get('/notifications/count', async (req, res) => {
+    console.log('HIT: GET /notifications/count');
+    try {
+        const unviewedBookings = await Booking.countDocuments({ isViewed: false });
+        const unreadContacts = await Contact.countDocuments({ status: 'new' });
+        res.json({
+            bookings: unviewedBookings,
+            contacts: unreadContacts,
+            total: unviewedBookings + unreadContacts
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Get notifications list
+// @route   GET /api/auth/notifications
+router.get('/notifications', async (req, res) => {
+    console.log('HIT: GET /notifications');
+    try {
+        const unviewedBookings = await Booking.find({ isViewed: false }).sort({ createdAt: -1 }).limit(5);
+        const unreadContacts = await Contact.find({ status: 'new' }).sort({ createdAt: -1 }).limit(5);
+
+        const notifications = [
+            ...unviewedBookings.map(b => ({
+                id: b._id,
+                type: 'booking',
+                title: 'New Booking',
+                subtitle: `${b.name} - ${b.vehicleName}`,
+                createdAt: b.createdAt
+            })),
+            ...unreadContacts.map(c => ({
+                id: c._id,
+                type: 'contact',
+                title: 'New Inquiry',
+                subtitle: `${c.fullName} - ${c.reason}`,
+                createdAt: c.createdAt
+            }))
+        ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 10);
+
+        res.json(notifications);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Mark all notifications as read
+// @route   POST /api/auth/notifications/mark-all-read
+router.post('/notifications/mark-all-read', async (req, res) => {
+    console.log('HIT: POST /notifications/mark-all-read');
+    try {
+        await Booking.updateMany({ isViewed: false }, { isViewed: true });
+        await Contact.updateMany({ status: 'new' }, { status: 'read' });
+        res.json({ message: 'All notifications marked as read' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
 // @desc    Register a new staff member
 // @route   POST /api/auth/signup
@@ -75,6 +137,8 @@ router.post('/login', async (req, res) => {
                 username: staff.username,
                 fullName: staff.fullName,
                 email: staff.email,
+                role: staff.role,
+                permissions: staff.permissions,
                 token: generateToken(staff._id)
             });
         } else {
@@ -142,36 +206,20 @@ router.get('/employees', async (req, res) => {
                     _id: "$employeeName",
                     total: { $sum: 1 },
                     confirmed: { $sum: { $cond: [{ $eq: ["$status", "Confirmed"] }, 1, 0] } },
-                    pending: { $sum: { $cond: [{ $eq: ["$status", "Pending"] }, 1, 0] } },
-                    rejected: { $sum: { $cond: [{ $eq: ["$status", "Cancelled"] }, 1, 0] } }
-                }
-            }
-        ]);
-
-        // Fetch stats for contacts
-        const contactStats = await Contact.aggregate([
-            { $match: dateFilter },
-            {
-                $group: {
-                    _id: "$employeeName",
-                    total: { $sum: 1 },
-                    confirmed: { $sum: { $cond: [{ $eq: ["$status", "responded"] }, 1, 0] } },
-                    pending: { $sum: { $cond: [{ $eq: ["$status", "new"] }, 1, 0] } },
-                    rejected: { $sum: { $cond: [{ $eq: ["$status", "archived"] }, 1, 0] } }
+                    sentInquiries: { $sum: { $cond: [{ $eq: ["$status", "Sent Inquiry"] }, 1, 0] } },
+                    rejected: { $sum: { $cond: [{ $in: ["$status", ["Rejected", "Cancelled"]] }, 1, 0] } }
                 }
             }
         ]);
 
         // Merge stats with staff list
         const performanceData = staffList.map(staff => {
-            const bStat = bookingStats.find(s => s._id === staff.fullName || s._id === staff.username) || { total: 0, confirmed: 0, pending: 0, rejected: 0 };
-            const cStat = contactStats.find(s => s._id === staff.fullName || s._id === staff.username) || { total: 0, confirmed: 0, pending: 0, rejected: 0 };
+            const bStat = bookingStats.find(s => s._id === staff.fullName || s._id === staff.username) || { total: 0, confirmed: 0, sentInquiries: 0, rejected: 0 };
 
-            const total = bStat.total + cStat.total;
-            const confirmed = bStat.confirmed + cStat.confirmed;
-            const pending = bStat.pending + cStat.pending;
-            const rejected = bStat.rejected + cStat.rejected;
-            const notContacted = pending; // Simplified logic
+            const total = bStat.total;
+            const confirmed = bStat.confirmed;
+            const sentInquiries = bStat.sentInquiries;
+            const rejected = bStat.rejected;
 
             return {
                 name: staff.fullName || staff.username,
@@ -181,18 +229,19 @@ router.get('/employees', async (req, res) => {
                 lastLogout: staff.lastLogout || null,
                 total,
                 confirmed,
-                pending,
+                sentInquiries,
                 rejected,
-                notContacted,
                 rate: total > 0 ? (confirmed / total) * 100 : 0
             };
         });
 
-        // Fetch global lead stats
-        const totalLeads = await Booking.countDocuments(dateFilter) + await Contact.countDocuments(dateFilter);
-        const confirmedLeads = await Booking.countDocuments({ ...dateFilter, status: "Confirmed" }) + await Contact.countDocuments({ ...dateFilter, status: "responded" });
-        const pendingLeads = await Booking.countDocuments({ ...dateFilter, status: "Pending" }) + await Contact.countDocuments({ ...dateFilter, status: "new" });
-        const rejectedLeads = await Booking.countDocuments({ ...dateFilter, status: "Cancelled" }) + await Contact.countDocuments({ ...dateFilter, status: "archived" });
+        // Fetch global BOOKING-ONLY lead stats (contacts/inquiries excluded from this section)
+        const totalLeads = await Booking.countDocuments(dateFilter);
+        const confirmedLeads = await Booking.countDocuments({ ...dateFilter, status: "Confirmed" });
+        const pendingLeads = await Booking.countDocuments({ ...dateFilter, status: "Pending" });
+        // Count both 'Rejected' and 'Cancelled' so neither is missed on the dashboard
+        const rejectedLeads = await Booking.countDocuments({ ...dateFilter, status: { $in: ["Rejected", "Cancelled"] } });
+        const sentInquiries = await Booking.countDocuments({ ...dateFilter, status: "Sent Inquiry" });
 
         res.json({
             performance: performanceData,
@@ -201,13 +250,12 @@ router.get('/employees', async (req, res) => {
                 confirmedLeads,
                 pendingLeads,
                 rejectedLeads,
-                notContactedLeads: pendingLeads,
-                notFollowedYet: pendingLeads // Placeholder for now
+                sentInquiries,
             },
             packageStats: {
-                totalPackages: 0, // Need package model for this
-                packageBookings: totalLeads,
-                canceledBookings: rejectedLeads
+                totalPackages: 0,
+                packageBookings: 0,
+                canceledBookings: 0
             }
         });
     } catch (error) {
@@ -217,8 +265,8 @@ router.get('/employees', async (req, res) => {
 
 // @desc    Get all users for management
 // @route   GET /api/auth/users
-// @access  Public (should be Admin)
-router.get('/users', async (req, res) => {
+// @access  Private (Super Admin Only)
+router.get('/users', protect, superAdminOnly, async (req, res) => {
     try {
         const users = await Staff.find({}, 'username fullName email role isOnline createdAt permissions status');
         res.json(users);
@@ -229,7 +277,8 @@ router.get('/users', async (req, res) => {
 
 // @desc    Update user (role, permissions, or status)
 // @route   PUT /api/auth/users/:id
-router.get('/users/:id', async (req, res) => {
+// @access  Private (Super Admin Only)
+router.get('/users/:id', protect, superAdminOnly, async (req, res) => {
     try {
         const user = await Staff.findById(req.params.id);
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -239,7 +288,7 @@ router.get('/users/:id', async (req, res) => {
     }
 });
 
-router.put('/users/:id', async (req, res) => {
+router.put('/users/:id', protect, superAdminOnly, async (req, res) => {
     try {
         const { role, permissions, status } = req.body;
         const user = await Staff.findById(req.params.id);
@@ -261,7 +310,8 @@ router.put('/users/:id', async (req, res) => {
 
 // @desc    Delete user
 // @route   DELETE /api/auth/users/:id
-router.delete('/users/:id', async (req, res) => {
+// @access  Private (Super Admin Only)
+router.delete('/users/:id', protect, superAdminOnly, async (req, res) => {
     try {
         const user = await Staff.findByIdAndDelete(req.params.id);
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -279,5 +329,6 @@ router.get('/profile', async (req, res) => {
     // Middleware would set req.user
     res.json({ message: 'Profile route' });
 });
+
 
 module.exports = router;

@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
+const Booking = require('../models/Booking');
+const Contact = require('../models/Contact');
 
 // Middleware
 app.use(cors());
