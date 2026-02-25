@@ -51,10 +51,12 @@ app.use(async (req, res, next) => {
 const bookingRoutes = require('../routes/bookingRoutes');
 const contactRoutes = require('../routes/contactRoute');
 const authRoutes = require('../routes/authRoutes');
+const rateCardRoutes = require('../routes/rateCardRoutes');
 
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/rate-cards', rateCardRoutes);
 
 // Health check and root route
 const rootHandler = (req, res) => {

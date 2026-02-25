@@ -27,11 +27,12 @@ router.post('/', async (req, res) => {
         maxBags,
         name,
         telephone,
-        email
+        email,
+        matchedPackage
     } = req.body;
 
     // Debug log — confirms what the backend received
-    console.log('[BOOKING] Received destinations:', destinations);
+    console.log('[BOOKING] Received matchedPackage:', !!matchedPackage);
 
     const booking = new Booking({
         vehicleType,
@@ -46,7 +47,8 @@ router.post('/', async (req, res) => {
         maxBags,
         name,
         telephone,
-        email
+        email,
+        matchedPackage
     });
 
     try {

@@ -73,6 +73,10 @@ const BookingSchema = new mongoose.Schema({
     isViewed: {
         type: Boolean,
         default: false
+    },
+    matchedPackage: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
     }
 });
 
