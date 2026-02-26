@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const Staff = require('../models/Staff');
 const Booking = require('../models/Booking');
 const Contact = require('../models/Contact');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 const router = express.Router();
 const { protect, superAdminOnly } = require('../middleware/authMiddleware');
 
@@ -180,6 +182,95 @@ router.post('/mark-online', async (req, res) => {
     }
 });
 
+// @desc    Forgot password (send OTP)
+// @route   POST /api/auth/forgot-password
+// @access  Public
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { email } = req.body;
+        const staff = await Staff.findOne({ email });
+
+        if (!staff) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Generate 6 digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const expires = new Date();
+        expires.setMinutes(expires.getMinutes() + 10); // Expire in 10 mins
+
+        staff.resetPasswordOTP = otp;
+        staff.resetPasswordExpires = expires;
+        await staff.save();
+
+        // Send Email
+        const transporter = nodemailer.createTransport({
+            service: 'gmail', // or use host/port for custom SMTP
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: staff.email,
+            subject: 'Senu Tours - Password Reset OTP',
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                    <h2 style="color: #0d9488;">Password Reset Request</h2>
+                    <p>Hello ${staff.fullName},</p>
+                    <p>We received a request to reset your password. Use the following OTP to proceed:</p>
+                    <div style="background: #f0fdfa; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                        <span style="font-size: 28px; font-weight: bold; color: #0d9488; letter-spacing: 5px;">${otp}</span>
+                    </div>
+                    <p>This OTP is valid for 10 minutes. If you did not request this, please ignore this email.</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                    <p style="font-size: 12px; color: #999;">Regards, <br />Senu Tours Team</p>
+                </div>
+            `
+        };
+
+        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+            await transporter.sendMail(mailOptions);
+            res.json({ message: 'OTP sent to your email' });
+        } else {
+            console.warn('EMAIL_USER and EMAIL_PASS not set in .env. OTP is:', otp);
+            res.status(500).json({ message: 'Email service not configured. Please contact the administrator.' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Reset password (verify OTP & update pass)
+// @route   POST /api/auth/reset-password
+// @access  Public
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        const staff = await Staff.findOne({
+            email,
+            resetPasswordOTP: otp,
+            resetPasswordExpires: { $gt: Date.now() }
+        });
+
+        if (!staff) {
+            return res.status(400).json({ message: 'Invalid or expired OTP' });
+        }
+
+        // Set new password
+        staff.password = newPassword;
+        staff.resetPasswordOTP = null;
+        staff.resetPasswordExpires = null;
+        await staff.save();
+
+        res.json({ message: 'Password reset successfully. You can now log in.' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 // @desc    Get all staff members with their performance stats
 // @route   GET /api/auth/employees
 // @access  Private (In a real app, use auth middleware)
@@ -303,6 +394,44 @@ router.put('/users/:id', protect, superAdminOnly, async (req, res) => {
 
         await user.save();
         res.json({ message: 'User updated successfully', user });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Super Admin change user password
+// @route   PUT /api/auth/users/:id/password
+// @access  Private (Super Admin Only)
+router.put('/users/:id/password', protect, superAdminOnly, async (req, res) => {
+    try {
+        const { password } = req.body;
+        const user = await Staff.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        user.password = password;
+        await user.save();
+
+        res.json({ message: 'User password updated successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Super Admin view user password (HASHED)
+// @route   GET /api/auth/users/:id/password
+// @access  Private (Super Admin Only)
+router.get('/users/:id/password', protect, superAdminOnly, async (req, res) => {
+    try {
+        const user = await Staff.findById(req.params.id).select('+password');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        res.json({
+            password: user.password,
+            note: "Passwords are encrypted (hashed) for security and cannot be shown in plain text. You can however change it to a new one."
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

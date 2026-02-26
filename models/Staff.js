@@ -50,6 +50,14 @@ const staffSchema = new mongoose.Schema({
         type: String,
         enum: ['pending', 'active', 'rejected'],
         default: 'pending'
+    },
+    resetPasswordOTP: {
+        type: String,
+        default: null
+    },
+    resetPasswordExpires: {
+        type: Date,
+        default: null
     }
 }, { timestamps: true });
 
