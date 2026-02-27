@@ -85,7 +85,7 @@ router.patch('/:id/pick', async (req, res) => {
 // PATCH update booking status
 router.patch('/:id/status', async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status, remark } = req.body;
         if (!status) {
             return res.status(400).json({ message: 'Status is required' });
         }
@@ -96,6 +96,9 @@ router.patch('/:id/status', async (req, res) => {
         }
 
         booking.status = status;
+        if (remark !== undefined) {
+            booking.remark = remark;
+        }
         await booking.save();
 
         res.json({ message: 'Status updated successfully', booking });

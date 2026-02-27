@@ -104,7 +104,7 @@ router.post('/', async (req, res) => {
 // PATCH update contact status
 router.patch('/:id/status', async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status, remark } = req.body;
         const allowedStatuses = ['new', 'read', 'responded', 'archived', 'Confirmed', 'Rejected'];
 
         if (!allowedStatuses.includes(status)) {
@@ -118,6 +118,9 @@ router.patch('/:id/status', async (req, res) => {
         }
 
         contact.status = status;
+        if (remark !== undefined) {
+            contact.remark = remark;
+        }
 
         if (status === 'responded') {
             contact.respondedAt = new Date();

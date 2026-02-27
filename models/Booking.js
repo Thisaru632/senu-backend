@@ -77,6 +77,10 @@ const BookingSchema = new mongoose.Schema({
     matchedPackage: {
         type: mongoose.Schema.Types.Mixed,
         default: null
+    },
+    remark: {
+        type: String,
+        default: ''
     }
 });
 

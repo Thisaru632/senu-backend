@@ -60,6 +60,10 @@ const contactSchema = new mongoose.Schema({
     customId: {
         type: String,
         unique: true
+    },
+    remark: {
+        type: String,
+        default: ''
     }
 }, {
     timestamps: true
