@@ -4,12 +4,17 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
+const path = require('path');
 const Booking = require('../models/Booking');
 const Contact = require('../models/Contact');
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
+// HIGH PRIORITY DEBUG
+app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
 
 // Database Connection for Serverless
 let isConnected = false;
@@ -52,11 +57,13 @@ const bookingRoutes = require('../routes/bookingRoutes');
 const contactRoutes = require('../routes/contactRoute');
 const authRoutes = require('../routes/authRoutes');
 const rateCardRoutes = require('../routes/rateCardRoutes');
+const tourPackageRoutes = require('../routes/tourPackageRoutes');
 
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/rate-cards', rateCardRoutes);
+app.use('/api/tour-packages', tourPackageRoutes);
 
 // Health check and root route
 const rootHandler = (req, res) => {
