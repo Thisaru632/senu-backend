@@ -27,12 +27,18 @@ router.post('/', async (req, res) => {
         maxBags,
         name,
         telephone,
+        additionalPhones,
         email,
-        matchedPackage
+        remark,
+        matchedPackage,
+        promoCode,
+        discount
     } = req.body;
 
     // Debug log — confirms what the backend received
+    console.log('[BOOKING] Full request body:', JSON.stringify(req.body, null, 2));
     console.log('[BOOKING] Received matchedPackage:', !!matchedPackage);
+    console.log('[BOOKING] Received promo:', promoCode, 'discount:', discount);
 
     const booking = new Booking({
         vehicleType,
@@ -47,8 +53,12 @@ router.post('/', async (req, res) => {
         maxBags,
         name,
         telephone,
+        additionalPhones: additionalPhones || [],
         email,
-        matchedPackage
+        remark,
+        matchedPackage,
+        promoCode,
+        discount
     });
 
     try {
@@ -97,7 +107,7 @@ router.patch('/:id/status', async (req, res) => {
 
         booking.status = status;
         if (remark !== undefined) {
-            booking.remark = remark;
+            booking.staffRemark = remark;
         }
         await booking.save();
 

@@ -49,6 +49,10 @@ const BookingSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    additionalPhones: {
+        type: [String],
+        default: []
+    },
     email: {
         type: String,
         required: true
@@ -81,6 +85,18 @@ const BookingSchema = new mongoose.Schema({
     remark: {
         type: String,
         default: ''
+    },
+    staffRemark: {
+        type: String,
+        default: ''
+    },
+    promoCode: {
+        type: String,
+        default: ''
+    },
+    discount: {
+        type: Number,
+        default: 0
     }
 });
 

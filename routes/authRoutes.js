@@ -132,7 +132,10 @@ router.post('/login', async (req, res) => {
             }
 
             // Mark as online
-            await Staff.findByIdAndUpdate(staff._id, { isOnline: true });
+            await Staff.findByIdAndUpdate(staff._id, {
+                isOnline: true,
+                lastActive: new Date()
+            });
 
             res.json({
                 _id: staff._id,
@@ -157,13 +160,20 @@ router.post('/login', async (req, res) => {
 router.post('/logout', async (req, res) => {
     try {
         const { email, username } = req.body;
-        const query = email ? { email } : { username };
-        await Staff.findOneAndUpdate(query, {
+        console.log(`[Auth] Logout request for: ${email || username}`);
+        const query = email ? { email: email.toLowerCase() } : { username };
+        const result = await Staff.findOneAndUpdate(query, {
             isOnline: false,
             lastLogout: new Date()
         });
+        if (result) {
+            console.log(`[Auth] Successfully logged out: ${result.username}`);
+        } else {
+            console.log(`[Auth] Logout failed: User not found for ${email || username}`);
+        }
         res.json({ message: 'Logged out successfully' });
     } catch (error) {
+        console.error(`[Auth] Logout error:`, error);
         res.status(500).json({ message: error.message });
     }
 });
@@ -174,9 +184,34 @@ router.post('/logout', async (req, res) => {
 router.post('/mark-online', async (req, res) => {
     try {
         const { email, username } = req.body;
-        const query = email ? { email } : { username };
-        await Staff.findOneAndUpdate(query, { isOnline: true });
+        console.log(`[Auth] Mark-online request for: ${email || username}`);
+        const query = email ? { email: email.toLowerCase() } : { username };
+        const result = await Staff.findOneAndUpdate(query, {
+            isOnline: true,
+            lastActive: new Date()
+        });
+        if (result) {
+            console.log(`[Auth] Successfully marked online: ${result.username}`);
+        }
         res.json({ message: 'Marked as online' });
+    } catch (error) {
+        console.error(`[Auth] Mark-online error:`, error.message);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Heartbeat to keep session alive
+// @route   POST /api/auth/heartbeat
+// @access  Public
+router.post('/heartbeat', async (req, res) => {
+    try {
+        const { email, username } = req.body;
+        const query = email ? { email: email.toLowerCase() } : { username };
+        await Staff.findOneAndUpdate(query, {
+            isOnline: true,
+            lastActive: new Date()
+        });
+        res.json({ status: 'alive' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -286,8 +321,15 @@ router.get('/employees', async (req, res) => {
             };
         }
 
+        // Automatically mark users as offline if no activity for 2 minutes
+        const threshold = new Date(Date.now() - 2 * 60 * 1000); // 2 minutes
+        await Staff.updateMany(
+            { lastActive: { $lt: threshold }, isOnline: true },
+            { isOnline: false }
+        );
+
         // Fetch all staff
-        const staffList = await Staff.find({}, 'username fullName email role isOnline lastLogout createdAt');
+        const staffList = await Staff.find({}, 'username fullName email role isOnline lastLogout createdAt lastActive');
 
         // Fetch stats for bookings
         const bookingStats = await Booking.aggregate([
@@ -359,7 +401,14 @@ router.get('/employees', async (req, res) => {
 // @access  Private (Super Admin Only)
 router.get('/users', protect, superAdminOnly, async (req, res) => {
     try {
-        const users = await Staff.find({}, 'username fullName email role isOnline createdAt permissions status');
+        // Automatically mark users as offline if no activity for 2 minutes
+        const threshold = new Date(Date.now() - 2 * 60 * 1000); // 2 minutes
+        await Staff.updateMany(
+            { lastActive: { $lt: threshold }, isOnline: true },
+            { isOnline: false }
+        );
+
+        const users = await Staff.find({}, 'username fullName email role isOnline createdAt permissions status lastActive');
         res.json(users);
     } catch (error) {
         res.status(500).json({ message: error.message });

@@ -64,6 +64,10 @@ const contactSchema = new mongoose.Schema({
     remark: {
         type: String,
         default: ''
+    },
+    staffRemark: {
+        type: String,
+        default: ''
     }
 }, {
     timestamps: true

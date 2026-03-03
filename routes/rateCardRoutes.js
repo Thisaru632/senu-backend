@@ -13,13 +13,45 @@ const upload = multer({ dest: os.tmpdir() });
 
 /**
  * @route   GET /api/rate-cards
- * @desc    Get all rate card entries
+ * @desc    Get all rate card entries with optional status filter
  */
 router.get('/', async (req, res) => {
     try {
-        const rateCards = await RateCard.find().sort({ createdAt: -1 });
+        const { status } = req.query;
+        const filter = status ? { status } : {};
+        console.log(`[RateCard] Fetching with filter:`, filter);
+        const rateCards = await RateCard.find(filter).sort({ createdAt: -1 });
         res.json(rateCards);
     } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+/**
+ * @route   PATCH /api/rate-cards/:id/status
+ * @desc    Update status of a rate card
+ */
+router.patch('/:id/status', async (req, res) => {
+    console.log(`[RateCard] Status update request for ${req.params.id} to ${req.body.status}`);
+    try {
+        const { status } = req.body;
+        if (!['Approved', 'Rejected', 'Pending'].includes(status)) {
+            return res.status(400).json({ message: 'Invalid status' });
+        }
+
+        const rateCard = await RateCard.findById(req.params.id);
+        if (!rateCard) {
+            console.log(`[RateCard] Not found: ${req.params.id}`);
+            return res.status(404).json({ message: 'Rate card not found' });
+        }
+
+        rateCard.status = status;
+        await rateCard.save();
+
+        console.log(`[RateCard] Successfully updated ${req.params.id} to ${status}`);
+        res.json({ message: `Rate card status updated to ${status}`, rateCard });
+    } catch (err) {
+        console.error(`[RateCard] Update error:`, err);
         res.status(500).json({ message: err.message });
     }
 });
@@ -70,7 +102,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
                         extraKMRate: parseFloat(getVal(['extra km', 'Extra KM', 'km_rate'])) || 0,
                         extraHrRate1: parseFloat(getVal(['extra hr', 'Extra Hr', 'hr_rate_1', 'Ext Hrs'])) || 0,
                         extraHrRate2: parseFloat(getVal(['extra hr 2', 'Extra Hr 2', 'hr_rate_2'])) || 0,
-                        status: getVal(['status', 'Status']) || 'Approved'
+                        status: getVal(['status', 'Status']) || 'Pending'
                     };
                 });
 
@@ -94,6 +126,8 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             }
         });
 });
+
+
 
 /**
  * @route   DELETE /api/rate-cards

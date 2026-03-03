@@ -28,6 +28,10 @@ const staffSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
+    lastActive: {
+        type: Date,
+        default: Date.now
+    },
     password: {
         type: String,
         required: [true, 'Please provide a password'],

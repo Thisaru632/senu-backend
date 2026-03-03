@@ -43,7 +43,7 @@ const RateCardSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        default: 'Approved',
+        default: 'Pending',
     },
     createdAt: {
         type: Date,

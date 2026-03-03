@@ -119,7 +119,7 @@ router.patch('/:id/status', async (req, res) => {
 
         contact.status = status;
         if (remark !== undefined) {
-            contact.remark = remark;
+            contact.staffRemark = remark;
         }
 
         if (status === 'responded') {
