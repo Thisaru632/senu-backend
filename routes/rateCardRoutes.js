@@ -5,11 +5,72 @@ const csv = require('csv-parser');
 const fs = require('fs');
 const path = require('path');
 const RateCard = require('../models/RateCard');
+const RateAdjustment = require('../models/RateAdjustment');
 
 const os = require('os');
 
 // Use os.tmpdir() for compatibility with serverless environments like Vercel
 const upload = multer({ dest: os.tmpdir() });
+
+console.log('[RateCardRouter] Initializing routes...');
+
+/**
+ * @route   GET /api/rate-cards/adjust
+ * @desc    Get all active rate adjustments
+ */
+router.get('/adjust', async (req, res) => {
+    try {
+        console.log('[RateCardRouter] GET /adjust called');
+        const adjustments = await RateAdjustment.find().sort({ lastUpdated: -1 });
+        res.json(adjustments);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+/**
+ * @route   POST /api/rate-cards/adjust
+ * @desc    Add or update a rate adjustment rule
+ */
+router.post('/adjust', async (req, res) => {
+    try {
+        const { percentage, vehicle, type } = req.body;
+        console.log('[RateCardRouter] POST /adjust called:', { percentage, vehicle, type });
+        const pct = parseFloat(percentage);
+
+        if (isNaN(pct)) return res.status(400).json({ message: 'Invalid percentage' });
+
+        const query = { vehicle: vehicle || 'All', type: type || 'All' };
+        const update = {
+            percentage: pct,
+            lastUpdated: new Date()
+        };
+
+        const adjustment = await RateAdjustment.findOneAndUpdate(
+            query,
+            update,
+            { upsert: true, new: true }
+        );
+
+        res.json({ message: `Successfully updated ${vehicle || 'All'} adjustment to ${pct}%`, adjustment });
+    } catch (err) {
+        console.error(`[RateCard] Adjustment error:`, err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+/**
+ * @route   DELETE /api/rate-cards/adjust/:id
+ * @desc    Reset (delete) a specific adjustment
+ */
+router.delete('/adjust/:id', async (req, res) => {
+    try {
+        await RateAdjustment.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Adjustment reset successfully' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
 
 /**
  * @route   GET /api/rate-cards
@@ -126,7 +187,6 @@ router.post('/upload', upload.single('file'), async (req, res) => {
             }
         });
 });
-
 
 
 /**
