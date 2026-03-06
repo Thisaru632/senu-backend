@@ -58,12 +58,14 @@ const contactRoutes = require('../routes/contactRoute');
 const authRoutes = require('../routes/authRoutes');
 const rateCardRoutes = require('../routes/rateCardRoutes');
 const tourPackageRoutes = require('../routes/tourPackageRoutes');
+const promoCodeRoutes = require('../routes/promoCodeRoutes');
 
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/rate-cards', rateCardRoutes);
 app.use('/api/tour-packages', tourPackageRoutes);
+app.use('/api/promo-codes', promoCodeRoutes);
 
 // Health check and root route
 const rootHandler = (req, res) => {
@@ -98,9 +100,11 @@ module.exports = app;
 // For local development
 if (require.main === module) {
     const PORT = process.env.PORT || 5000;
-    connectDB().then(() => {
-        app.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+        // Connect to DB after starting the server
+        connectDB().catch(err => {
+            console.error('Initial MongoDB connection failed:', err);
         });
     });
 }

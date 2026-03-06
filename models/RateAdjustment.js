@@ -14,6 +14,14 @@ const RateAdjustmentSchema = new mongoose.Schema({
         required: true,
         default: 0
     },
+    validFrom: {
+        type: Date,
+        default: null
+    },
+    validTo: {
+        type: Date,
+        default: null
+    },
     lastUpdated: {
         type: Date,
         default: Date.now

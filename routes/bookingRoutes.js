@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Booking = require('../models/Booking');
+const PromoCode = require('../models/PromoCode');
 
 // GET all bookings
 router.get('/', async (req, res) => {
@@ -64,6 +65,25 @@ router.post('/', async (req, res) => {
     try {
         const newBooking = await booking.save();
         console.log('[BOOKING] Saved destinations:', newBooking.destinations);
+
+        // Increment promo code usage count if provided
+        if (promoCode) {
+            try {
+                const updatedPromo = await PromoCode.findOneAndUpdate(
+                    { code: promoCode.toUpperCase() },
+                    { $inc: { usageCount: 1 } },
+                    { new: true }
+                );
+                if (updatedPromo) {
+                    console.log(`[BOOKING] Incremented usageCount for promo: ${promoCode}, new count: ${updatedPromo.usageCount}`);
+                } else {
+                    console.log(`[BOOKING] Promo code ${promoCode} not found for usage tracking.`);
+                }
+            } catch (promoErr) {
+                console.error('[BOOKING] Error incrementing promo usage count:', promoErr);
+            }
+        }
+
         res.status(201).json(newBooking);
     } catch (err) {
         res.status(400).json({ message: err.message });

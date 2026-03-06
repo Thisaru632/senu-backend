@@ -29,13 +29,26 @@ router.get('/adjust', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/rate-cards/categories
+ * @desc    Get unique vehicle categories from rate cards
+ */
+router.get('/categories', async (req, res) => {
+    try {
+        const categories = await RateCard.distinct('vehicle');
+        res.json(categories);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+/**
  * @route   POST /api/rate-cards/adjust
  * @desc    Add or update a rate adjustment rule
  */
 router.post('/adjust', async (req, res) => {
     try {
-        const { percentage, vehicle, type } = req.body;
-        console.log('[RateCardRouter] POST /adjust called:', { percentage, vehicle, type });
+        const { percentage, vehicle, type, validFrom, validTo } = req.body;
+        console.log('[RateCardRouter] POST /adjust called:', { percentage, vehicle, type, validFrom, validTo });
         const pct = parseFloat(percentage);
 
         if (isNaN(pct)) return res.status(400).json({ message: 'Invalid percentage' });
@@ -43,6 +56,8 @@ router.post('/adjust', async (req, res) => {
         const query = { vehicle: vehicle || 'All', type: type || 'All' };
         const update = {
             percentage: pct,
+            validFrom: validFrom ? new Date(validFrom) : null,
+            validTo: validTo ? new Date(validTo) : null,
             lastUpdated: new Date()
         };
 
