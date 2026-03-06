@@ -48,7 +48,9 @@ const staffSchema = new mongoose.Schema({
         leads: { type: Boolean, default: false },
         cms: { type: Boolean, default: false },
         userManagement: { type: Boolean, default: false },
-        reports: { type: Boolean, default: false }
+        reports: { type: Boolean, default: false },
+        rateCardManage: { type: Boolean, default: false },
+        promoCodeManage: { type: Boolean, default: false }
     },
     status: {
         type: String,
