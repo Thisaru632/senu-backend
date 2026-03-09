@@ -59,6 +59,7 @@ const authRoutes = require('../routes/authRoutes');
 const rateCardRoutes = require('../routes/rateCardRoutes');
 const tourPackageRoutes = require('../routes/tourPackageRoutes');
 const promoCodeRoutes = require('../routes/promoCodeRoutes');
+const customerRoutes = require('../routes/customerRoutes');
 
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/contacts', contactRoutes);
@@ -66,6 +67,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/rate-cards', rateCardRoutes);
 app.use('/api/tour-packages', tourPackageRoutes);
 app.use('/api/promo-codes', promoCodeRoutes);
+app.use('/api/customers', customerRoutes);
 
 // Health check and root route
 const rootHandler = (req, res) => {

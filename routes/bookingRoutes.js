@@ -3,10 +3,22 @@ const router = express.Router();
 const Booking = require('../models/Booking');
 const PromoCode = require('../models/PromoCode');
 
+const { protectCustomer } = require('../middleware/customerAuth');
+
 // GET all bookings
 router.get('/', async (req, res) => {
     try {
         const bookings = await Booking.find().sort({ createdAt: -1 });
+        res.json(bookings);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// GET customer's own bookings
+router.get('/my-bookings', protectCustomer, async (req, res) => {
+    try {
+        const bookings = await Booking.find({ email: req.customer.email }).sort({ createdAt: -1 });
         res.json(bookings);
     } catch (err) {
         res.status(500).json({ message: err.message });

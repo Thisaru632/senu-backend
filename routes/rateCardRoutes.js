@@ -158,29 +158,43 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
                 // Map CSV data to our RateCard schema
                 // Mapping handles variations in header names based on common exports
-                const formattedData = results.map(row => {
-                    // Extract values by looking at keys (some CSVs might have spaces or weird characters)
-                    const getVal = (possibleNames) => {
-                        const key = Object.keys(row).find(k =>
-                            possibleNames.some(name => k.toLowerCase().trim() === name.toLowerCase())
-                        );
-                        return key ? row[key] : null;
-                    };
+                const formattedData = results
+                    .map(row => {
+                        const getVal = (possibleNames) => {
+                            const key = Object.keys(row).find(k =>
+                                possibleNames.some(name => k.toLowerCase().trim() === name.toLowerCase())
+                            );
+                            return key ? row[key] : null;
+                        };
 
-                    return {
-                        type: getVal(['type', 'Type']) || 'Return',
-                        vehicle: getVal(['vehicle', 'Vehicle', 'Model']) || 'Unknown',
-                        days: parseInt(getVal(['days', 'Days', 'Day'])) || 1,
-                        km: parseInt(getVal(['km', 'KM', 'Distance'])) || 0,
-                        hrs: parseInt(getVal(['hrs', 'Hrs', 'Hours', 'Hour'])) || 0,
-                        ratePercent: getVal(['rate %', 'Rate %', 'rate_percent']) || '100%',
-                        rateAmount: parseFloat(getVal(['rate', 'Rate', 'Amount', 'Basic Rate'])) || 0,
-                        extraKMRate: parseFloat(getVal(['extra km', 'Extra KM', 'km_rate'])) || 0,
-                        extraHrRate1: parseFloat(getVal(['extra hr', 'Extra Hr', 'hr_rate_1', 'Ext Hrs'])) || 0,
-                        extraHrRate2: parseFloat(getVal(['extra hr 2', 'Extra Hr 2', 'hr_rate_2'])) || 0,
-                        status: getVal(['status', 'Status']) || 'Pending'
-                    };
-                });
+                        const vehicle = getVal(['vehicle', 'Vehicle', 'Model']) || 'Unknown';
+                        const ratePercent = getVal(['rate %', 'Rate %', 'rate_percent']) || '100%';
+                        const hrs = parseInt(getVal(['hrs', 'Hrs', 'Hours', 'Hour'])) || 0;
+
+                        // Guideline 1: Nano and SUV must be removed
+                        if (['nano', 'suv'].includes(vehicle.toLowerCase().trim())) return null;
+
+                        // Guideline 2: Get only 100% rates
+                        if (ratePercent !== '100%') return null;
+
+                        // Guideline 3: 28h, 52h, 76h packages must be removed
+                        if ([28, 52, 76].includes(hrs)) return null;
+
+                        return {
+                            type: getVal(['type', 'Type']) || 'Return',
+                            vehicle: vehicle,
+                            days: parseInt(getVal(['days', 'Days', 'Day'])) || 1,
+                            km: parseInt(getVal(['km', 'KM', 'Distance'])) || 0,
+                            hrs: hrs,
+                            ratePercent: ratePercent,
+                            rateAmount: parseFloat(getVal(['rate', 'Rate', 'Amount', 'Basic Rate'])) || 0,
+                            extraKMRate: parseFloat(getVal(['extra km', 'Extra KM', 'km_rate'])) || 0,
+                            extraHrRate1: parseFloat(getVal(['extra hr', 'Extra Hr', 'hr_rate_1', 'Ext Hrs'])) || 0,
+                            extraHrRate2: parseFloat(getVal(['extra hr 2', 'Extra Hr 2', 'hr_rate_2'])) || 0,
+                            status: 'Approved'
+                        };
+                    })
+                    .filter(item => item !== null);
 
                 // Option: Clear existing data before inserting new ones from manage page
                 // This makes it a "replacement" upload which is usually what's wanted for rate cards
