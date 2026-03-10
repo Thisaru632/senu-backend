@@ -181,16 +181,16 @@ router.post('/upload', upload.single('file'), async (req, res) => {
                         if ([28, 52, 76].includes(hrs)) return null;
 
                         return {
-                            type: getVal(['type', 'Type']) || 'Return',
+                            type: getVal(['type', 'Type', 'trip type']) || 'Return',
                             vehicle: vehicle,
-                            days: parseInt(getVal(['days', 'Days', 'Day'])) || 1,
-                            km: parseInt(getVal(['km', 'KM', 'Distance'])) || 0,
+                            days: parseInt(getVal(['days', 'Days', 'Day', 'no of days'])) || 1,
+                            km: parseInt(getVal(['km', 'KM', 'Distance', 'km limit'])) || 0,
                             hrs: hrs,
                             ratePercent: ratePercent,
-                            rateAmount: parseFloat(getVal(['rate', 'Rate', 'Amount', 'Basic Rate'])) || 0,
-                            extraKMRate: parseFloat(getVal(['extra km', 'Extra KM', 'km_rate'])) || 0,
-                            extraHrRate1: parseFloat(getVal(['extra hr', 'Extra Hr', 'hr_rate_1', 'Ext Hrs'])) || 0,
-                            extraHrRate2: parseFloat(getVal(['extra hr 2', 'Extra Hr 2', 'hr_rate_2'])) || 0,
+                            rateAmount: parseFloat(getVal(['rate', 'Rate', 'Amount', 'Basic Rate', 'package rate'])) || 0,
+                            extraKMRate: parseFloat(getVal(['extra km', 'Extra KM', 'km_rate', 'ext km', 'ext_km'])) || 0,
+                            extraHrRate1: parseFloat(getVal(['extra hr', 'Extra Hr', 'hr_rate_1', 'Ext Hrs', 'ext hr'])) || 0,
+                            extraHrRate2: parseFloat(getVal(['extra hr 2', 'Extra Hr 2', 'hr_rate_2', 'ext hr 2'])) || 0,
                             status: 'Approved'
                         };
                     })
