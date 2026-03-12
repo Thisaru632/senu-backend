@@ -159,7 +159,10 @@ router.post('/upload', upload.single('file'), async (req, res) => {
                 // Map CSV data to our RateCard schema
                 // Mapping handles variations in header names based on common exports
                 const formattedData = results
-                    .map(row => {
+                    .map((row, index) => {
+                        if (index === 0) {
+                            console.log('[RateCardUpload] First row keys:', Object.keys(row));
+                        }
                         const getVal = (possibleNames) => {
                             const key = Object.keys(row).find(k =>
                                 possibleNames.some(name => k.toLowerCase().trim() === name.toLowerCase())
@@ -167,30 +170,38 @@ router.post('/upload', upload.single('file'), async (req, res) => {
                             return key ? row[key] : null;
                         };
 
-                        const vehicle = getVal(['vehicle', 'Vehicle', 'Model']) || 'Unknown';
-                        const ratePercent = getVal(['rate %', 'Rate %', 'rate_percent']) || '100%';
-                        const hrs = parseInt(getVal(['hrs', 'Hrs', 'Hours', 'Hour'])) || 0;
+                        // Clean numeric values (remove LKR, commas, etc.)
+                        const cleanNum = (val) => {
+                            if (!val) return 0;
+                            // Remove anything that isn't a digit, dot or minus sign
+                            const cleaned = val.toString().replace(/[^\d.-]/g, '');
+                            return parseFloat(cleaned) || 0;
+                        };
+
+                        const vehicle = getVal(['vehicle', 'Vehicle', 'Model', 'Vehicle Name']) || 'Unknown';
+                        const ratePercent = getVal(['rate %', 'Rate %', 'rate_percent', 'rate percentage']) || '100%';
+                        const hrs = parseInt(getVal(['hrs', 'Hrs', 'Hours', 'Hour', 'no of hrs'])) || 0;
 
                         // Guideline 1: Nano and SUV must be removed
                         if (['nano', 'suv'].includes(vehicle.toLowerCase().trim())) return null;
 
                         // Guideline 2: Get only 100% rates
-                        if (ratePercent !== '100%') return null;
+                        if (ratePercent !== '100%' && ratePercent !== '100') return null;
 
                         // Guideline 3: 28h, 52h, 76h packages must be removed
                         if ([28, 52, 76].includes(hrs)) return null;
 
                         return {
-                            type: getVal(['type', 'Type', 'trip type']) || 'Return',
+                            type: getVal(['type', 'Type', 'trip type', 'Trip']) || 'Return',
                             vehicle: vehicle,
-                            days: parseInt(getVal(['days', 'Days', 'Day', 'no of days'])) || 1,
-                            km: parseInt(getVal(['km', 'KM', 'Distance', 'km limit'])) || 0,
+                            days: parseInt(getVal(['days', 'Days', 'Day', 'no of days', 'Duration (Days)'])) || 1,
+                            km: parseInt(getVal(['km', 'KM', 'Distance', 'km limit', 'KM Limit'])) || 0,
                             hrs: hrs,
                             ratePercent: ratePercent,
-                            rateAmount: parseFloat(getVal(['rate', 'Rate', 'Amount', 'Basic Rate', 'package rate'])) || 0,
-                            extraKMRate: parseFloat(getVal(['extra km', 'Extra KM', 'km_rate', 'ext km', 'ext_km'])) || 0,
-                            extraHrRate1: parseFloat(getVal(['extra hr', 'Extra Hr', 'hr_rate_1', 'Ext Hrs', 'ext hr'])) || 0,
-                            extraHrRate2: parseFloat(getVal(['extra hr 2', 'Extra Hr 2', 'hr_rate_2', 'ext hr 2'])) || 0,
+                            rateAmount: cleanNum(getVal(['rate', 'Rate', 'Amount', 'Basic Rate', 'package rate', 'Basic Package Rate'])),
+                            extraKMRate: cleanNum(getVal(['extra km', 'Extra KM', 'km_rate', 'ext km', 'ext_km', 'ext. km', 'ext.km', 'Extra KM Rate', 'KM Rate'])),
+                            extraHrRate1: cleanNum(getVal(['extra hr', 'Extra Hr', 'hr_rate_1', 'Ext Hrs', 'ext hr', 'ext. hr', 'Extra Hour Rate'])),
+                            extraHrRate2: cleanNum(getVal(['extra hr 2', 'Extra Hr 2', 'hr_rate_2', 'ext hr 2', 'ext. hr 2', 'Extra Hour Rate 2'])),
                             status: 'Approved'
                         };
                     })

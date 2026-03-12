@@ -103,10 +103,10 @@ const BookingSchema = new mongoose.Schema({
 // Pre-save hook to generate customId
 BookingSchema.pre('save', async function () {
     if (!this.customId) {
-        const lastBooking = await this.constructor.findOne({}, { customId: 1 }).sort({ createdAt: -1 });
+        const lastBooking = await this.constructor.findOne({ customId: /^BL/ }, { customId: 1 }).sort({ customId: -1 });
         let nextNumber = 1;
 
-        if (lastBooking && lastBooking.customId && lastBooking.customId.startsWith('BL')) {
+        if (lastBooking && lastBooking.customId) {
             const lastNumber = parseInt(lastBooking.customId.substring(2));
             if (!isNaN(lastNumber)) {
                 nextNumber = lastNumber + 1;
