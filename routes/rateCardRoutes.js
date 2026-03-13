@@ -164,9 +164,13 @@ router.post('/upload', upload.single('file'), async (req, res) => {
                             console.log('[RateCardUpload] First row keys:', Object.keys(row));
                         }
                         const getVal = (possibleNames) => {
-                            const key = Object.keys(row).find(k =>
-                                possibleNames.some(name => k.toLowerCase().trim() === name.toLowerCase())
-                            );
+                            const key = Object.keys(row).find(k => {
+                                const cleanK = k.toLowerCase().replace(/\s+/g, ' ').trim();
+                                return possibleNames.some(name => {
+                                    const cleanName = name.toLowerCase().replace(/\s+/g, ' ').trim();
+                                    return cleanK === cleanName;
+                                });
+                            });
                             return key ? row[key] : null;
                         };
 
@@ -199,10 +203,10 @@ router.post('/upload', upload.single('file'), async (req, res) => {
                             hrs: hrs,
                             ratePercent: ratePercent,
                             rateAmount: cleanNum(getVal(['rate', 'Rate', 'Amount', 'Basic Rate', 'package rate', 'Basic Package Rate'])),
-                            extraKMRate: cleanNum(getVal(['extra km', 'Extra KM', 'km_rate', 'ext km', 'ext_km', 'ext. km', 'ext.km', 'Extra KM Rate', 'KM Rate'])),
-                            extraHrRate1: cleanNum(getVal(['extra hr', 'Extra Hr', 'hr_rate_1', 'Ext Hrs', 'ext hr', 'ext. hr', 'Extra Hour Rate'])),
-                            extraHrRate2: cleanNum(getVal(['extra hr 2', 'Extra Hr 2', 'hr_rate_2', 'ext hr 2', 'ext. hr 2', 'Extra Hour Rate 2'])),
-                            status: 'Approved'
+                            extraKMRate: cleanNum(getVal(['extra km', 'Extra KM', 'km_rate', 'ext km', 'ext_km', 'ext. km', 'ext.km', 'Extra KM Rate', 'KM Rate', 'pk rate', 'price/km', 'per km', 'Extra KM Charge', 'extra km fee', 'rate per km', 'per km rate'])) ,
+                            extraHrRate1: cleanNum(getVal(['extra hr', 'Extra Hr', 'hr_rate_1', 'Ext Hrs', 'ext hr', 'ext. hr', 'Extra Hour Rate', 'Extra Hr Rate', 'Price/Hr', 'Extra Hr Fee'])),
+                            extraHrRate2: cleanNum(getVal(['extra hr 2', 'Extra Hr 2', 'hr_rate_2', 'ext hr 2', 'ext. hr 2', 'Extra Hour Rate 2', 'Extra Hr Rate 2', 'Extra Hr Fee 2'])),
+                            status: getVal(['status', 'Status', 'state', 'Approval Status']) || 'Approved'
                         };
                     })
                     .filter(item => item !== null);
