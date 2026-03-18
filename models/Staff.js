@@ -50,7 +50,8 @@ const staffSchema = new mongoose.Schema({
         userManagement: { type: Boolean, default: false },
         reports: { type: Boolean, default: false },
         rateCardManage: { type: Boolean, default: false },
-        promoCodeManage: { type: Boolean, default: false }
+        promoCodeManage: { type: Boolean, default: false },
+        staffGuideManage: { type: Boolean, default: false }
     },
     status: {
         type: String,
