@@ -1,25 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const mongoose = require('mongoose');
 const StaffGuide = require('../models/StaffGuide');
 const { protect } = require('../middleware/authMiddleware');
 
-// Configure Multer for PDF storage
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const dir = path.join(__dirname, '../public/uploads/staff-guides');
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
+// Storage in Memory (for GridFS upload)
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
     if (file.mimetype === 'application/pdf') {
@@ -44,7 +31,7 @@ const adminOnly = (req, res, next) => {
 };
 
 // @route   POST /api/staff-guides/upload
-// @desc    Upload a new staff guide
+// @desc    Upload a new staff guide to GridFS (Database)
 // @access  Private (Admin/Superadmin)
 router.post('/upload', protect, adminOnly, upload.single('guide'), async (req, res) => {
     try {
@@ -54,21 +41,66 @@ router.post('/upload', protect, adminOnly, upload.single('guide'), async (req, r
 
         const { title, description, category } = req.body;
         
-        const guide = new StaffGuide({
-            title: title || req.file.originalname,
-            description,
-            category,
-            fileName: req.file.filename,
-            filePath: req.file.path,
-            fileUrl: `/uploads/staff-guides/${req.file.filename}`,
-            size: req.file.size,
-            uploadedBy: req.user._id
+        // Setup GridFS
+        const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+            bucketName: 'staff_guides'
         });
 
-        const savedGuide = await guide.save();
-        res.status(201).json(savedGuide);
+        const uploadStream = bucket.openUploadStream(req.file.originalname, {
+            contentType: req.file.mimetype
+        });
+
+        const fileId = uploadStream.id;
+
+        uploadStream.end(req.file.buffer);
+
+        uploadStream.on('error', (err) => {
+            return res.status(500).json({ message: 'Error saving to database' });
+        });
+
+        uploadStream.on('finish', async () => {
+            const guide = new StaffGuide({
+                title: title || req.file.originalname,
+                description,
+                category,
+                fileName: req.file.originalname,
+                fileId: fileId,
+                fileUrl: `/api/staff-guides/file/${fileId}`,
+                size: req.file.size,
+                uploadedBy: req.user._id
+            });
+
+            const savedGuide = await guide.save();
+            res.status(201).json(savedGuide);
+        });
+
     } catch (error) {
         console.error('Upload Error:', error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @route   GET /api/staff-guides/file/:id
+// @desc    View a file from GridFS
+// @access  Public (Handled by frontend security)
+router.get('/file/:id', async (req, res) => {
+    try {
+        const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+            bucketName: 'staff_guides'
+        });
+
+        const fileId = new mongoose.Types.ObjectId(req.params.id);
+        const downloadStream = bucket.openDownloadStream(fileId);
+
+        res.set('Content-Type', 'application/pdf');
+        res.set('Accept-Ranges', 'bytes');
+
+        downloadStream.on('error', () => {
+            res.status(404).json({ message: 'File not found' });
+        });
+
+        downloadStream.pipe(res);
+    } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
@@ -97,10 +129,15 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
             return res.status(404).json({ message: 'Guide not found' });
         }
 
-        // Delete file from storage
-        const fullPath = path.join(__dirname, '..', 'public', guide.fileUrl);
-        if (fs.existsSync(fullPath)) {
-            fs.unlinkSync(fullPath);
+        // Delete from GridFS
+        const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+            bucketName: 'staff_guides'
+        });
+        
+        try {
+            await bucket.delete(new mongoose.Types.ObjectId(guide.fileId));
+        } catch (e) {
+            console.warn('GridFS Delete failed, moving on...', e);
         }
 
         await StaffGuide.findByIdAndDelete(req.params.id);
