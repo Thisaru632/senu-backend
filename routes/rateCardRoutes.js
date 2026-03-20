@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const RateCard = require('../models/RateCard');
 const RateAdjustment = require('../models/RateAdjustment');
+const GlobalSetting = require('../models/GlobalSetting');
 
 const os = require('os');
 
@@ -13,6 +14,44 @@ const os = require('os');
 const upload = multer({ dest: os.tmpdir() });
 
 console.log('[RateCardRouter] Initializing routes...');
+
+/**
+ * @route   GET /api/rate-cards/settings
+ * @desc    Get all global settings (like non-peak time charge toggle)
+ */
+router.get('/settings', async (req, res) => {
+    try {
+        const settings = await GlobalSetting.find();
+        const settingsMap = settings.reduce((acc, s) => {
+            acc[s.key] = s.value;
+            return acc;
+        }, {});
+        res.json(settingsMap);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+/**
+ * @route   POST /api/rate-cards/settings
+ * @desc    Update a global setting
+ */
+router.post('/settings', async (req, res) => {
+    try {
+        const { key, value, description } = req.body;
+        if (!key) return res.status(400).json({ message: 'Key is required' });
+
+        const setting = await GlobalSetting.findOneAndUpdate(
+            { key },
+            { value, description, lastUpdated: new Date() },
+            { upsert: true, new: true }
+        );
+
+        res.json({ message: `Successfully updated ${key}`, setting });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
 
 /**
  * @route   GET /api/rate-cards/adjust

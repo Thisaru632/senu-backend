@@ -29,6 +29,6 @@ async function updateThisaru() {
         console.error(err);
         process.exit(1);
     }
-}
+} StylePropertyMapReadOnly
 
 updateThisaru();
