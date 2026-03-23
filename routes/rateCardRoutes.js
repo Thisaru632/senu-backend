@@ -7,6 +7,7 @@ const path = require('path');
 const RateCard = require('../models/RateCard');
 const RateAdjustment = require('../models/RateAdjustment');
 const GlobalSetting = require('../models/GlobalSetting');
+const NightSurcharge = require('../models/NightSurcharge');
 
 const os = require('os');
 
@@ -121,6 +122,86 @@ router.delete('/adjust/:id', async (req, res) => {
     try {
         await RateAdjustment.findByIdAndDelete(req.params.id);
         res.json({ message: 'Adjustment reset successfully' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+/**
+ * @route   GET /api/rate-cards/night-surcharge
+ * @desc    Get all active night surcharge rules
+ */
+router.get('/night-surcharge', async (req, res) => {
+    try {
+        console.log('[RateCardRouter] GET /night-surcharge called');
+        const surcharges = await NightSurcharge.find().sort({ lastUpdated: -1 });
+        res.json(surcharges);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+/**
+ * @route   POST /api/rate-cards/night-surcharge
+ * @desc    Add or update a night surcharge rule
+ */
+router.post('/night-surcharge', async (req, res) => {
+    try {
+        const { vehicle, type, minKm, maxKm, startTime, endTime, amount } = req.body;
+        console.log('[RateCardRouter] POST /night-surcharge called:', req.body);
+        
+        const amt = parseFloat(amount);
+        if (isNaN(amt)) return res.status(400).json({ message: 'Invalid amount' });
+
+        // Update if all filters match exactly, otherwise create new
+        const query = { 
+            vehicle: vehicle || 'All', 
+            type: type || 'All',
+            minKm: parseInt(minKm) || 0,
+            maxKm: parseInt(maxKm) || 99999,
+            startTime: startTime || '00:00',
+            endTime: endTime || '04:00'
+        };
+
+        const update = {
+            amount: amt,
+            lastUpdated: new Date()
+        };
+
+        const result = await NightSurcharge.findOneAndUpdate(
+            query,
+            update,
+            { upsert: true, new: true }
+        );
+
+        res.json({ message: `Successfully added/updated night surcharge rule`, result });
+    } catch (err) {
+        console.error(`[RateCard] Night surcharge error:`, err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+router.delete('/night-surcharge/:id', async (req, res) => {
+    try {
+        await NightSurcharge.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Night surcharge rule removed successfully' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+/**
+ * @route   PATCH /api/rate-cards/night-surcharge/:id
+ * @desc    Update status of a specific night surcharge rule
+ */
+router.patch('/night-surcharge/:id', async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['Active', 'Inactive'].includes(status)) {
+            return res.status(400).json({ message: 'Invalid status' });
+        }
+        await NightSurcharge.findByIdAndUpdate(req.params.id, { status, lastUpdated: new Date() });
+        res.json({ message: `Night surcharge rule marked as ${status}` });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

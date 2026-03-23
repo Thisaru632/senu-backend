@@ -97,6 +97,10 @@ const BookingSchema = new mongoose.Schema({
     discount: {
         type: Number,
         default: 0
+    },
+    nightSurcharge: {
+        type: Number,
+        default: 0
     }
 });
 
