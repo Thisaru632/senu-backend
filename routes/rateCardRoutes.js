@@ -285,13 +285,14 @@ router.post('/upload', upload.single('file'), async (req, res) => {
                         }
                         const getVal = (possibleNames) => {
                             const key = Object.keys(row).find(k => {
-                                const cleanK = k.toLowerCase().replace(/\s+/g, ' ').trim();
+                                // Remove BOM and non-printable characters, then normalize spaces
+                                const cleanK = k.replace(/[^\x20-\x7E\s]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
                                 return possibleNames.some(name => {
                                     const cleanName = name.toLowerCase().replace(/\s+/g, ' ').trim();
-                                    return cleanK === cleanName;
+                                    return cleanK === cleanName || cleanK.includes(cleanName);
                                 });
                             });
-                            return key ? row[key] : null;
+                            return key ? row[key]?.trim() : null;
                         };
 
                         // Clean numeric values (remove LKR, commas, etc.)
@@ -317,6 +318,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
                         return {
                             type: getVal(['type', 'Type', 'trip type', 'Trip']) || 'Return',
+                            category: getVal(['category', 'Category', 'Vehicle Category', 'Cat']),
                             vehicle: vehicle,
                             days: parseInt(getVal(['days', 'Days', 'Day', 'no of days', 'Duration (Days)'])) || 1,
                             km: parseInt(getVal(['km', 'KM', 'Distance', 'km limit', 'KM Limit'])) || 0,

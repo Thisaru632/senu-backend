@@ -9,6 +9,10 @@ const RateCardSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    category: {
+        type: String,
+        required: false,
+    },
     days: {
         type: Number,
         required: true,
