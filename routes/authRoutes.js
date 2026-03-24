@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const Staff = require('../models/Staff');
+const Customer = require('../models/Customer');
 const Booking = require('../models/Booking');
 const Contact = require('../models/Contact');
 const nodemailer = require('nodemailer');
@@ -503,10 +504,4 @@ router.delete('/users/:id', protect, superAdminOnly, async (req, res) => {
 // @route   GET /api/auth/profile
 // @access  Private
 // This would need a middleware to protect it
-router.get('/profile', async (req, res) => {
-    // Middleware would set req.user
-    res.json({ message: 'Profile route' });
-});
-
-
 module.exports = router;

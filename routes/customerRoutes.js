@@ -1,7 +1,60 @@
 const express = require('express');
 const Customer = require('../models/Customer');
 const { protectCustomer } = require('../middleware/customerAuth');
+const { protect } = require('../middleware/authMiddleware'); // Staff protection
 const router = express.Router();
+
+// @desc    Get all web users (customers)
+// @route   GET /api/customers
+// @access  Private (Approved Staff Only)
+router.get('/', protect, async (req, res) => {
+    try {
+        const customers = await Customer.find({}, 'name email phone status isOnline lastActive createdAt').sort({ createdAt: -1 }).lean();
+        
+        // Fetch booking counts for each customer email
+        const Booking = require('../models/Booking');
+        const customersWithCounts = await Promise.all(customers.map(async (customer) => {
+            const bookingCount = await Booking.countDocuments({ email: customer.email });
+            return {
+                ...customer,
+                bookingCount
+            };
+        }));
+
+        res.json(customersWithCounts);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Update customer status (Block/Unblock)
+// @route   PUT /api/customers/:id/status
+// @access  Private (Approved Staff Only)
+router.patch('/:id/status', protect, async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['active', 'deactivated'].includes(status)) {
+            return res.status(400).json({ message: 'Invalid status' });
+        }
+
+        const customer = await Customer.findByIdAndUpdate(
+            req.params.id,
+            { status },
+            { new: true, runValidators: true }
+        );
+
+        if (!customer) {
+            return res.status(404).json({ message: 'Customer not found' });
+        }
+
+        res.json({
+            message: `Customer ${status === 'active' ? 'activated' : 'deactivated'} successfully`,
+            customer
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
 // NOTE: authRoutes.js uses 'jsonwebtoken', let's stick to that.
 const jsonwebtoken = require('jsonwebtoken');
@@ -246,6 +299,26 @@ router.put('/profile', protectCustomer, async (req, res) => {
             status: updatedCustomer.status,
             message: 'Profile updated successfully'
         });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Update customer password
+// @route   PATCH /api/customers/update-password
+router.patch('/update-password', protectCustomer, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const customer = await Customer.findById(req.customer._id).select('+password');
+
+        if (!customer || !(await customer.comparePassword(currentPassword))) {
+            return res.status(401).json({ message: 'Current password is incorrect' });
+        }
+
+        customer.password = newPassword;
+        await customer.save();
+
+        res.json({ message: 'Password updated successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
