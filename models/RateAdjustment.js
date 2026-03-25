@@ -11,8 +11,24 @@ const RateAdjustmentSchema = new mongoose.Schema({
     },
     percentage: {
         type: Number,
-        required: true,
         default: 0
+    },
+    fixedAmount: {
+        type: Number,
+        default: 0
+    },
+    adjustmentType: {
+        type: String,
+        enum: ['percentage', 'fixed'],
+        default: 'percentage'
+    },
+    minKm: {
+        type: Number,
+        default: 0
+    },
+    maxKm: {
+        type: Number,
+        default: 99999
     },
     validFrom: {
         type: Date,

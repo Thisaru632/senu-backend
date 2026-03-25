@@ -87,15 +87,25 @@ router.get('/categories', async (req, res) => {
  */
 router.post('/adjust', async (req, res) => {
     try {
-        const { percentage, vehicle, type, validFrom, validTo } = req.body;
-        console.log('[RateCardRouter] POST /adjust called:', { percentage, vehicle, type, validFrom, validTo });
-        const pct = parseFloat(percentage);
+        const { percentage, fixedAmount, adjustmentType, vehicle, type, validFrom, validTo } = req.body;
+        console.log('[RateCardRouter] POST /adjust called:', { percentage, fixedAmount, adjustmentType, vehicle, type, validFrom, validTo });
+        
+        const adjType = adjustmentType || 'percentage';
+        const pct = parseFloat(percentage) || 0;
+        const fixed = parseFloat(fixedAmount) || 0;
 
-        if (isNaN(pct)) return res.status(400).json({ message: 'Invalid percentage' });
-
-        const query = { vehicle: vehicle || 'All', type: type || 'All' };
+        const query = { 
+            vehicle: vehicle || 'All', 
+            type: type || 'All',
+            minKm: parseInt(req.body.minKm) || 0,
+            maxKm: parseInt(req.body.maxKm) || 99999
+        };
         const update = {
+            adjustmentType: adjType,
             percentage: pct,
+            fixedAmount: fixed,
+            minKm: parseInt(req.body.minKm) || 0,
+            maxKm: parseInt(req.body.maxKm) || 99999,
             validFrom: validFrom ? new Date(validFrom) : null,
             validTo: validTo ? new Date(validTo) : null,
             lastUpdated: new Date()
@@ -107,7 +117,11 @@ router.post('/adjust', async (req, res) => {
             { upsert: true, new: true }
         );
 
-        res.json({ message: `Successfully updated ${vehicle || 'All'} adjustment to ${pct}%`, adjustment });
+        const msg = adjType === 'percentage' 
+            ? `Successfully updated ${vehicle || 'All'} adjustment to ${pct}%` 
+            : `Successfully updated ${vehicle || 'All'} adjustment to Rs. ${fixed}`;
+
+        res.json({ message: msg, adjustment });
     } catch (err) {
         console.error(`[RateCard] Adjustment error:`, err);
         res.status(500).json({ message: err.message });
@@ -123,6 +137,49 @@ router.delete('/adjust/:id', async (req, res) => {
         await RateAdjustment.findByIdAndDelete(req.params.id);
         res.json({ message: 'Adjustment reset successfully' });
     } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+/**
+ * @route   PATCH /api/rate-cards/adjust/:id
+ * @desc    Update a specific adjustment rule
+ */
+router.patch('/adjust/:id', async (req, res) => {
+    try {
+        const { adjustmentType, percentage, fixedAmount, vehicle, type, validFrom, validTo, minKm, maxKm } = req.body;
+        console.log(`[RateCardRouter] PATCH /adjust/${req.params.id} called with:`, req.body);
+
+        const update = {
+            lastUpdated: new Date()
+        };
+
+        if (adjustmentType) update.adjustmentType = adjustmentType;
+        if (percentage !== undefined) update.percentage = parseFloat(percentage);
+        if (fixedAmount !== undefined) update.fixedAmount = parseFloat(fixedAmount);
+        if (vehicle) update.vehicle = vehicle;
+        if (type) update.type = type;
+        if (minKm !== undefined) update.minKm = parseInt(minKm);
+        if (maxKm !== undefined) update.maxKm = parseInt(maxKm);
+        
+        // Handle dates - explicitly allow null
+        if (validFrom !== undefined) update.validFrom = validFrom ? new Date(validFrom) : null;
+        if (validTo !== undefined) update.validTo = validTo ? new Date(validTo) : null;
+
+        const adjustment = await RateAdjustment.findByIdAndUpdate(
+            req.params.id,
+            update,
+            { new: true }
+        );
+
+        if (!adjustment) {
+            console.warn(`[RateCard] Adjustment update failed: Rule ${req.params.id} not found`);
+            return res.status(404).json({ message: 'Adjustment rule not found' });
+        }
+
+        res.json({ message: 'Adjustment rule updated successfully', adjustment });
+    } catch (err) {
+        console.error(`[RateCard] Update adjustment error for ${req.params.id}:`, err);
         res.status(500).json({ message: err.message });
     }
 });
@@ -196,13 +253,34 @@ router.delete('/night-surcharge/:id', async (req, res) => {
  */
 router.patch('/night-surcharge/:id', async (req, res) => {
     try {
-        const { status } = req.body;
-        if (!['Active', 'Inactive'].includes(status)) {
+        const { id } = req.params;
+        const updateData = { ...req.body, lastUpdated: new Date() };
+        
+        // If status is provided, validate it
+        if (updateData.status && !['Active', 'Inactive'].includes(updateData.status)) {
             return res.status(400).json({ message: 'Invalid status' });
         }
-        await NightSurcharge.findByIdAndUpdate(req.params.id, { status, lastUpdated: new Date() });
-        res.json({ message: `Night surcharge rule marked as ${status}` });
+
+        // Convert types to numbers where needed and handle NaN
+        if (updateData.minKm !== undefined) updateData.minKm = parseInt(updateData.minKm) || 0;
+        if (updateData.maxKm !== undefined) updateData.maxKm = parseInt(updateData.maxKm) || 99999;
+        if (updateData.amount !== undefined) updateData.amount = parseFloat(updateData.amount) || 0;
+
+        const updatedRule = await NightSurcharge.findByIdAndUpdate(
+            id, 
+            updateData, 
+            { new: true }
+        );
+
+        if (!updatedRule) {
+            console.warn(`[RateCard] Night surcharge update failed: Rule ${id} not found`);
+            return res.status(404).json({ message: 'Night surcharge rule not found' });
+        }
+
+        console.log(`[RateCard] Successfully updated night surcharge rule: ${id}`);
+        res.json({ message: 'Night surcharge rule updated successfully', result: updatedRule });
     } catch (err) {
+        console.error(`[RateCard] Night surcharge update error for ${req.params.id}:`, err);
         res.status(500).json({ message: err.message });
     }
 });
