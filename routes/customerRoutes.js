@@ -341,4 +341,45 @@ router.get('/me', protectCustomer, async (req, res) => {
     }
 });
 
+// @desc    Get customer search history
+// @route   GET /api/customers/search-history
+router.get('/search-history', protectCustomer, async (req, res) => {
+    try {
+        const customer = await Customer.findById(req.customer._id).select('searchHistory');
+        // Sort by timestamp descending
+        const history = (customer.searchHistory || []).sort((a, b) => b.timestamp - a.timestamp);
+        res.json(history);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Add to customer search history
+// @route   POST /api/customers/search-history
+router.post('/search-history', protectCustomer, async (req, res) => {
+    try {
+        const { address, lat, lon } = req.body;
+        if (!address) return res.status(400).json({ message: 'Address is required' });
+
+        const customer = await Customer.findById(req.customer._id);
+        if (!customer) return res.status(404).json({ message: 'Customer not found' });
+
+        // Remove if exists (to move it to top)
+        customer.searchHistory = customer.searchHistory.filter(h => h.address !== address);
+
+        // Add to the beginning
+        customer.searchHistory.unshift({ address, lat, lon, timestamp: new Date() });
+
+        // Limit to 10 entries
+        if (customer.searchHistory.length > 10) {
+            customer.searchHistory = customer.searchHistory.slice(0, 10);
+        }
+
+        await customer.save();
+        res.json({ message: 'Search history updated', history: customer.searchHistory });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 module.exports = router;

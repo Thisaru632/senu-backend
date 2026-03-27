@@ -48,7 +48,16 @@ const customerSchema = new mongoose.Schema({
     role: {
         type: String,
         default: 'customer'
-    }
+    },
+    searchHistory: [{
+        address: String,
+        lat: String,
+        lon: String,
+        timestamp: {
+            type: Date,
+            default: Date.now
+        }
+    }]
 }, { timestamps: true });
 
 // Hash password before saving
