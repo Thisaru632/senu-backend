@@ -18,7 +18,7 @@ const contactSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Phone number is required'],
         trim: true,
-        match: [/^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}$/, 'Please provide a valid phone number']
+        match: [/^(?:\+94|0)?[0-9]{9,10}$/, 'Please provide a valid phone number']
     },
     reason: {
         type: String,

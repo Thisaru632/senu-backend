@@ -47,7 +47,8 @@ const BookingSchema = new mongoose.Schema({
     },
     telephone: {
         type: String,
-        required: true
+        required: true,
+        match: [/^(?:\+94|0)?[0-9]{9,10}$/, 'Please provide a valid phone number']
     },
     additionalPhones: {
         type: [String],

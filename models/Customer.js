@@ -16,7 +16,8 @@ const customerSchema = new mongoose.Schema({
     },
     phone: {
         type: String,
-        trim: true
+        trim: true,
+        match: [/^(?:\+94|0)?[0-9]{9,10}$/, 'Please provide a valid phone number']
     },
     password: {
         type: String,
