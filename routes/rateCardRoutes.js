@@ -87,8 +87,8 @@ router.get('/categories', async (req, res) => {
  */
 router.post('/adjust', async (req, res) => {
     try {
-        const { percentage, fixedAmount, adjustmentType, vehicle, type, validFrom, validTo } = req.body;
-        console.log('[RateCardRouter] POST /adjust called:', { percentage, fixedAmount, adjustmentType, vehicle, type, validFrom, validTo });
+        const { percentage, fixedAmount, adjustmentType, vehicle, type, validFrom, validTo, category, days, hrs } = req.body;
+        console.log('[RateCardRouter] POST /adjust called:', { percentage, fixedAmount, adjustmentType, vehicle, type, category, days, hrs });
         
         const adjType = adjustmentType || 'percentage';
         const pct = parseFloat(percentage) || 0;
@@ -97,6 +97,9 @@ router.post('/adjust', async (req, res) => {
         const query = { 
             vehicle: vehicle || 'All', 
             type: type || 'All',
+            category: category || 'All',
+            days: days || 'All',
+            hrs: hrs || 'All',
             minKm: parseInt(req.body.minKm) || 0,
             maxKm: parseInt(req.body.maxKm) || 99999
         };
@@ -104,6 +107,9 @@ router.post('/adjust', async (req, res) => {
             adjustmentType: adjType,
             percentage: pct,
             fixedAmount: fixed,
+            category: category || 'All',
+            days: days || 'All',
+            hrs: hrs || 'All',
             minKm: parseInt(req.body.minKm) || 0,
             maxKm: parseInt(req.body.maxKm) || 99999,
             validFrom: validFrom ? new Date(validFrom) : null,
@@ -147,7 +153,7 @@ router.delete('/adjust/:id', async (req, res) => {
  */
 router.patch('/adjust/:id', async (req, res) => {
     try {
-        const { adjustmentType, percentage, fixedAmount, vehicle, type, validFrom, validTo, minKm, maxKm } = req.body;
+        const { adjustmentType, percentage, fixedAmount, vehicle, type, validFrom, validTo, minKm, maxKm, category, days, hrs } = req.body;
         console.log(`[RateCardRouter] PATCH /adjust/${req.params.id} called with:`, req.body);
 
         const update = {
@@ -159,6 +165,9 @@ router.patch('/adjust/:id', async (req, res) => {
         if (fixedAmount !== undefined) update.fixedAmount = parseFloat(fixedAmount);
         if (vehicle) update.vehicle = vehicle;
         if (type) update.type = type;
+        if (category) update.category = category;
+        if (days) update.days = days;
+        if (hrs) update.hrs = hrs;
         if (minKm !== undefined) update.minKm = parseInt(minKm);
         if (maxKm !== undefined) update.maxKm = parseInt(maxKm);
         

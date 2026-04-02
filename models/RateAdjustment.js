@@ -3,11 +3,23 @@ const mongoose = require('mongoose');
 const RateAdjustmentSchema = new mongoose.Schema({
     vehicle: {
         type: String,
-        default: 'All', // 'All' or specific vehicle name
+        default: 'All', // 'All', specific name, or comma-separated names
+    },
+    category: {
+        type: String,
+        default: 'All', // 'All', 'City & Mountain', etc.
     },
     type: {
         type: String,
         default: 'All', // 'All', 'Drop', 'Return'
+    },
+    days: {
+        type: String,
+        default: 'All', // 'All' or a specific number as string
+    },
+    hrs: {
+        type: String,
+        default: 'All', // 'All' or a specific number as string
     },
     percentage: {
         type: Number,
