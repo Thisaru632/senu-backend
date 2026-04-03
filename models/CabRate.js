@@ -17,6 +17,7 @@ const CabRateSchema = new mongoose.Schema({
     extraKmPrice: { type: Number },
     extraHourPrice: { type: Number },
     comment: { type: String },
+    calledSim: { type: String }, // e.g. "SIM 1"
     createdAt: { type: Date, default: Date.now }
 });
 
