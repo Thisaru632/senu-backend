@@ -45,7 +45,13 @@ router.post('/', async (req, res) => {
         remark,
         matchedPackage,
         promoCode,
-        discount
+        discount,
+        routeDistance,
+        routeDuration,
+        totalPrice,
+        provinceAdjustment,
+        seasonalAdjustment,
+        discountPercentage
     } = req.body;
 
     // Debug log — confirms what the backend received
@@ -71,7 +77,13 @@ router.post('/', async (req, res) => {
         remark,
         matchedPackage,
         promoCode,
-        discount
+        discount,
+        routeDistance: routeDistance || 0,
+        routeDuration: routeDuration || 0,
+        totalPrice: totalPrice || 0,
+        provinceAdjustment: provinceAdjustment || 0,
+        seasonalAdjustment: seasonalAdjustment || 0,
+        discountPercentage: discountPercentage || 0
     });
 
     try {

@@ -102,6 +102,30 @@ const BookingSchema = new mongoose.Schema({
     nightSurcharge: {
         type: Number,
         default: 0
+    },
+    routeDistance: {
+        type: Number,
+        default: 0
+    },
+    routeDuration: {
+        type: Number,
+        default: 0
+    },
+    totalPrice: {
+        type: Number,
+        default: 0
+    },
+    provinceAdjustment: {
+        type: Number,
+        default: 0
+    },
+    seasonalAdjustment: {
+        type: Number,
+        default: 0
+    },
+    discountPercentage: {
+        type: Number,
+        default: 0
     }
 });
 

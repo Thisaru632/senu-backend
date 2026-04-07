@@ -111,7 +111,7 @@ module.exports = app;
 
 // For local development
 if (require.main === module) {
-    const PORT = process.env.PORT || 5000;
+    const PORT = process.env.PORT || 5001;
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
         // Connect to DB after starting the server
