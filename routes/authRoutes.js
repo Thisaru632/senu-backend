@@ -341,7 +341,8 @@ router.get('/employees', async (req, res) => {
                     total: { $sum: 1 },
                     confirmed: { $sum: { $cond: [{ $eq: ["$status", "Confirmed"] }, 1, 0] } },
                     sentInquiries: { $sum: { $cond: [{ $eq: ["$status", "Sent Inquiry"] }, 1, 0] } },
-                    rejected: { $sum: { $cond: [{ $in: ["$status", ["Rejected", "Cancelled"]] }, 1, 0] } }
+                    rejected: { $sum: { $cond: [{ $in: ["$status", ["Rejected", "Cancelled"]] }, 1, 0] } },
+                    ignored: { $sum: { $cond: [{ $eq: ["$status", "Ignored"] }, 1, 0] } }
                 }
             }
         ]);
@@ -354,6 +355,7 @@ router.get('/employees', async (req, res) => {
             const confirmed = bStat.confirmed;
             const sentInquiries = bStat.sentInquiries;
             const rejected = bStat.rejected;
+            const ignored = bStat.ignored || 0;
 
             return {
                 name: staff.fullName || staff.username,
@@ -365,6 +367,7 @@ router.get('/employees', async (req, res) => {
                 confirmed,
                 sentInquiries,
                 rejected,
+                ignored,
                 rate: total > 0 ? (confirmed / total) * 100 : 0
             };
         });
@@ -385,6 +388,7 @@ router.get('/employees', async (req, res) => {
                 pendingLeads,
                 rejectedLeads,
                 sentInquiries,
+                ignoredLeads: await Booking.countDocuments({ ...dateFilter, status: "Ignored" }),
             },
             packageStats: {
                 totalPackages: 0,
