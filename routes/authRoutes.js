@@ -10,9 +10,13 @@ const router = express.Router();
 const { protect, superAdminOnly } = require('../middleware/authMiddleware');
 
 // Generate JWT
-const generateToken = (id) => {
+const generateToken = (id, role) => {
+    let expiry = '1h'; // Default for staff
+    if (role === 'admin' || role === 'superadmin') {
+        expiry = '4h';
+    }
     return jwt.sign({ id }, process.env.JWT_SECRET || 'fallback_secret', {
-        expiresIn: '30d'
+        expiresIn: expiry
     });
 };
 
@@ -145,7 +149,7 @@ router.post('/login', async (req, res) => {
                 email: staff.email,
                 role: staff.role,
                 permissions: staff.permissions,
-                token: generateToken(staff._id)
+                token: generateToken(staff._id, staff.role)
             });
         } else {
             res.status(401).json({ message: 'Invalid email or password' });
