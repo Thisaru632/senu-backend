@@ -65,6 +65,8 @@ const staffGuideRoutes = require('../routes/staffGuideRoutes');
 const cabServiceRoutes = require('../routes/cabServiceRoutes');
 const cabRateRoutes = require('../routes/cabRateRoutes');
 const simRoutes = require('../routes/simRoutes');
+const vehicleRegistrationRoutes = require('../routes/vehicleRegistrationRoutes');
+
 
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/contacts', contactRoutes);
@@ -77,6 +79,8 @@ app.use('/api/staff-guides', staffGuideRoutes);
 app.use('/api/cab-service', cabServiceRoutes);
 app.use('/api/cab-rates', cabRateRoutes);
 app.use('/api/sims', simRoutes);
+app.use('/api/vehicle-registrations', vehicleRegistrationRoutes);
+
 
 
 // Health check and root route
