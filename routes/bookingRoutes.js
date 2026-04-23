@@ -46,6 +46,7 @@ router.post('/', async (req, res) => {
         matchedPackage,
         promoCode,
         discount,
+        nightSurcharge,
         routeDistance,
         routeDuration,
         totalPrice,
@@ -78,6 +79,7 @@ router.post('/', async (req, res) => {
         matchedPackage,
         promoCode,
         discount,
+        nightSurcharge: nightSurcharge || 0,
         routeDistance: routeDistance || 0,
         routeDuration: routeDuration || 0,
         totalPrice: totalPrice || 0,
@@ -85,6 +87,7 @@ router.post('/', async (req, res) => {
         seasonalAdjustment: seasonalAdjustment || 0,
         discountPercentage: discountPercentage || 0
     });
+
 
     try {
         const newBooking = await booking.save();
