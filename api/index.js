@@ -29,11 +29,13 @@ const connectDB = async () => {
 
     try {
         const db = await mongoose.connect(process.env.MONGO_URI, {
+            maxPoolSize: 1, // Crucial for serverless to prevent connection limit issues
             serverSelectionTimeoutMS: 10000,
             socketTimeoutMS: 45000,
+            family: 4, // Force IPv4 to avoid slow DNS lookups in some environments
         });
         isConnected = db.connections[0].readyState === 1;
-        console.log('MongoDB Connected Successfully');
+        console.log('MongoDB Connected Successfully (Pool Size: 1)');
     } catch (err) {
         console.error('MongoDB Connection Error:', err);
         throw err;
