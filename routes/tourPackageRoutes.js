@@ -2,22 +2,10 @@ const express = require('express');
 const router = express.Router();
 const TourPackage = require('../models/TourPackage');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const mongoose = require('mongoose');
 
-// Configure multer for image upload
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        const uploadDir = path.join(__dirname, '../public/uploads/packages');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-        cb(null, 'package-' + Date.now() + path.extname(file.originalname));
-    }
-});
+// Configure multer for memory storage (GridFS)
+const storage = multer.memoryStorage();
 
 const upload = multer({
     storage: storage,
@@ -28,6 +16,31 @@ const upload = multer({
         } else {
             cb(new Error('Only images are allowed'));
         }
+    }
+});
+
+/**
+ * @route   GET /api/tour-packages/file/:id
+ * @desc    View a file from GridFS
+ */
+router.get('/file/:id', async (req, res) => {
+    try {
+        const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+            bucketName: 'tour_packages'
+        });
+
+        const fileId = new mongoose.Types.ObjectId(req.params.id);
+        const downloadStream = bucket.openDownloadStream(fileId);
+
+        res.set('Content-Type', 'image/jpeg'); // Default to image/jpeg
+
+        downloadStream.on('error', () => {
+            res.status(404).json({ message: 'File not found' });
+        });
+
+        downloadStream.pipe(res);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 });
 
@@ -44,12 +57,29 @@ router.get('/', async (req, res) => {
 
 // @desc    Upload image for package
 // @route   POST /api/tour-packages/upload
-router.post('/upload', upload.single('image'), (req, res) => {
+router.post('/upload', upload.single('image'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ message: 'No file uploaded' });
         }
-        const filePath = `/uploads/packages/${req.file.filename}`;
+
+        const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+            bucketName: 'tour_packages'
+        });
+
+        const uploadStream = bucket.openUploadStream(`package-${Date.now()}-${req.file.originalname}`, {
+            contentType: req.file.mimetype
+        });
+
+        const fileId = uploadStream.id;
+        uploadStream.end(req.file.buffer);
+
+        await new Promise((resolve, reject) => {
+            uploadStream.on('finish', resolve);
+            uploadStream.on('error', reject);
+        });
+
+        const filePath = `/api/tour-packages/file/${fileId}`;
         res.json({ url: filePath });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -98,6 +128,20 @@ router.patch('/:id', async (req, res) => {
 // @route   DELETE /api/tour-packages/:id
 router.delete('/:id', async (req, res) => {
     try {
+        const pkg = await TourPackage.findById(req.params.id);
+        if (pkg && pkg.image) {
+             const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+                bucketName: 'tour_packages'
+            });
+            try {
+                const fileIdStr = pkg.image.split('/').pop();
+                if (mongoose.Types.ObjectId.isValid(fileIdStr)) {
+                    await bucket.delete(new mongoose.Types.ObjectId(fileIdStr));
+                }
+            } catch (e) {
+                console.warn('GridFS Delete failed for package image', e.message);
+            }
+        }
         await TourPackage.findByIdAndDelete(req.params.id);
         res.json({ message: 'Package deleted successfully' });
     } catch (error) {

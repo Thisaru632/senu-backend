@@ -1,24 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const mongoose = require('mongoose');
 const VehicleRegistration = require('../models/VehicleRegistration');
 
-// Multer Storage Configuration
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../public/uploads/vehicle_registrations');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'bus-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
+// Multer Memory Storage Configuration (for GridFS upload)
+const storage = multer.memoryStorage();
 
 const upload = multer({ 
     storage: storage,
@@ -26,12 +13,38 @@ const upload = multer({
     fileFilter: (req, file, cb) => {
         const filetypes = /jpeg|jpg|png|webp/;
         const mimetype = filetypes.test(file.mimetype);
-        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        const extname = filetypes.test(require('path').extname(file.originalname).toLowerCase());
 
         if (mimetype && extname) {
             return cb(null, true);
         }
         cb(new Error('Only JPEG, JPG, PNG and WEBP images are allowed!'));
+    }
+});
+
+/**
+ * @route   GET /api/vehicle-registrations/file/:id
+ * @desc    View a file from GridFS
+ */
+router.get('/file/:id', async (req, res) => {
+    try {
+        const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+            bucketName: 'vehicle_registrations'
+        });
+
+        const fileId = new mongoose.Types.ObjectId(req.params.id);
+        const downloadStream = bucket.openDownloadStream(fileId);
+
+        // Try to determine content type or default to image/jpeg
+        res.set('Content-Type', 'image/jpeg'); 
+
+        downloadStream.on('error', () => {
+            res.status(404).json({ message: 'File not found' });
+        });
+
+        downloadStream.pipe(res);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 });
 
@@ -47,7 +60,30 @@ router.post('/', upload.array('busImages', 10), async (req, res) => {
             return res.status(400).json({ message: 'All fields are required' });
         }
 
-        const imagePaths = req.files ? req.files.map(file => `/uploads/vehicle_registrations/${file.filename}`) : [];
+        const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+            bucketName: 'vehicle_registrations'
+        });
+
+        const imagePaths = [];
+
+        if (req.files && req.files.length > 0) {
+            for (const file of req.files) {
+                const uploadStream = bucket.openUploadStream(`bus-${Date.now()}-${file.originalname}`, {
+                    contentType: file.mimetype
+                });
+                
+                const fileId = uploadStream.id;
+                uploadStream.end(file.buffer);
+
+                // Wait for upload to finish
+                await new Promise((resolve, reject) => {
+                    uploadStream.on('finish', resolve);
+                    uploadStream.on('error', reject);
+                });
+
+                imagePaths.push(`/api/vehicle-registrations/file/${fileId}`);
+            }
+        }
 
         const newRegistration = new VehicleRegistration({
             driverName,
@@ -74,21 +110,31 @@ router.post('/', upload.array('busImages', 10), async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
     try {
-        const registration = await VehicleRegistration.findByIdAndDelete(req.params.id);
+        const registration = await VehicleRegistration.findById(req.params.id);
         if (!registration) {
             return res.status(404).json({ message: 'Registration not found' });
         }
         
-        // Optional: Delete associated images from storage
+        // Delete associated images from GridFS
         if (registration.busImages && registration.busImages.length > 0) {
-            registration.busImages.forEach(imgPath => {
-                const fullPath = path.join(__dirname, '../public', imgPath);
-                if (fs.existsSync(fullPath)) {
-                    fs.unlinkSync(fullPath);
-                }
+            const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+                bucketName: 'vehicle_registrations'
             });
+
+            for (const imgPath of registration.busImages) {
+                try {
+                    // Extract file ID from path /api/vehicle-registrations/file/ID
+                    const fileIdStr = imgPath.split('/').pop();
+                    if (mongoose.Types.ObjectId.isValid(fileIdStr)) {
+                        await bucket.delete(new mongoose.Types.ObjectId(fileIdStr));
+                    }
+                } catch (e) {
+                    console.warn('GridFS Delete failed for', imgPath, e.message);
+                }
+            }
         }
 
+        await VehicleRegistration.findByIdAndDelete(req.params.id);
         res.json({ message: 'Registration deleted successfully' });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -106,7 +152,6 @@ router.patch('/:id/status', async (req, res) => {
             return res.status(400).json({ message: 'Invalid status' });
         }
 
-
         const registration = await VehicleRegistration.findById(req.params.id);
         if (!registration) {
             return res.status(404).json({ message: 'Registration not found' });
@@ -116,6 +161,19 @@ router.patch('/:id/status', async (req, res) => {
         await registration.save();
 
         res.json({ message: `Registration ${status.toLowerCase()} successfully`, registration });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+/**
+ * @route   GET /api/vehicle-registrations/pending-count
+ * @desc    Get count of pending registrations
+ */
+router.get('/pending-count', async (req, res) => {
+    try {
+        const count = await VehicleRegistration.countDocuments({ status: 'Pending' });
+        res.json({ count });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

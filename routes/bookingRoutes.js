@@ -15,6 +15,22 @@ router.get('/', async (req, res) => {
     }
 });
 
+// GET unpicked leads count
+router.get('/unpicked-count', async (req, res) => {
+    try {
+        const count = await Booking.countDocuments({ 
+            $or: [
+                { employeeName: '' }, 
+                { employeeName: { $exists: false } },
+                { employeeName: null }
+            ] 
+        });
+        res.json({ count });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // GET customer's own bookings
 router.get('/my-bookings', protectCustomer, async (req, res) => {
     try {
