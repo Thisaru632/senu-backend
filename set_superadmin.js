@@ -17,7 +17,12 @@ async function updateThisaru() {
                 leads: true,
                 cms: true,
                 userManagement: true,
-                reports: true
+                reports: true,
+                rateCardManage: true,
+                promoCodeManage: true,
+                staffGuideManage: true,
+                cabService: true,
+                vehicleRegistration: true
             };
             await user.save();
             console.log('User updated to superadmin and all permissions granted.');

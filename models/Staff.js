@@ -52,7 +52,8 @@ const staffSchema = new mongoose.Schema({
         rateCardManage: { type: Boolean, default: false },
         promoCodeManage: { type: Boolean, default: false },
         staffGuideManage: { type: Boolean, default: false },
-        cabService: { type: Boolean, default: false }
+        cabService: { type: Boolean, default: false },
+        vehicleRegistration: { type: Boolean, default: false }
     },
     status: {
         type: String,
