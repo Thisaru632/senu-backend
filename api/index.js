@@ -18,25 +18,43 @@ app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
 
 // Database Connection for Serverless
-let isConnected = false;
+// Use a global variable to cache the connection promise
+let cachedConnection = null;
+
 const connectDB = async () => {
-    if (mongoose.connection.readyState === 1) return;
+    // If we already have a connection, return it
+    if (mongoose.connection.readyState === 1) {
+        return mongoose.connection;
+    }
+
+    // If a connection is already in progress, wait for it
+    if (cachedConnection) {
+        return cachedConnection;
+    }
 
     if (!process.env.MONGO_URI) {
         console.error('CRITICAL: MONGO_URI is not defined in environment variables');
-        return;
+        throw new Error('MONGO_URI is missing');
     }
 
+    // Options to optimize for serverless and prevent connection spikes
+    const options = {
+        maxPoolSize: 5, // Small pool per instance to balance performance and connection limits
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+        family: 4, // Force IPv4
+        heartbeatFrequencyMS: 10000, // Frequent heartbeats to keep connection alive
+    };
+
+    console.log('Initializing new MongoDB connection...');
+    cachedConnection = mongoose.connect(process.env.MONGO_URI, options);
+
     try {
-        const db = await mongoose.connect(process.env.MONGO_URI, {
-            maxPoolSize: 1, // Crucial for serverless to prevent connection limit issues
-            serverSelectionTimeoutMS: 10000,
-            socketTimeoutMS: 45000,
-            family: 4, // Force IPv4 to avoid slow DNS lookups in some environments
-        });
-        isConnected = db.connections[0].readyState === 1;
-        console.log('MongoDB Connected Successfully (Pool Size: 1)');
+        const db = await cachedConnection;
+        console.log('MongoDB Connected Successfully (Pool Size: 5)');
+        return db;
     } catch (err) {
+        cachedConnection = null; // Reset on failure
         console.error('MongoDB Connection Error:', err);
         throw err;
     }

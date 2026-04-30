@@ -13,9 +13,21 @@ app.use(express.json());
 app.use("/api/bookings", require("./routes/bookingRoutes"));
 
 // Database connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch(err => console.log(err));
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      maxPoolSize: 10, // Good for a standalone server
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    console.log("MongoDB connected");
+  } catch (err) {
+    console.error("MongoDB connection error:", err);
+    process.exit(1);
+  }
+};
+
+connectDB();
 
 // Start server
 const PORT = 5000;
