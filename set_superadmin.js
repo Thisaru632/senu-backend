@@ -1,10 +1,10 @@
 require('dotenv').config();
-const mongoose = require('mongoose');
+const connectDB = require('./config/db');
 const Staff = require('./models/Staff');
 
 async function updateThisaru() {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        await connectDB();
         const user = await Staff.findOne({ $or: [{ username: /thisaru/i }, { fullName: /thisaru/i }] });
 
         if (user) {
@@ -34,6 +34,6 @@ async function updateThisaru() {
         console.error(err);
         process.exit(1);
     }
-} StylePropertyMapReadOnly
+}
 
 updateThisaru();

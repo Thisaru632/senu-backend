@@ -1,9 +1,11 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 
+const connectDB = require('./config/db');
+
 async function countUsers() {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        await connectDB();
         const Staff = require('./models/Staff');
         const count = await Staff.countDocuments();
         console.log(`TOTAL_USERS: ${count}`);

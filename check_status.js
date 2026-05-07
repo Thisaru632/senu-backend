@@ -2,9 +2,11 @@ const mongoose = require('mongoose');
 require('dotenv').config();
 const Staff = require('./models/Staff');
 
+const connectDB = require('./config/db');
+
 async function checkStatus() {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        await connectDB();
         const users = await Staff.find({}, 'username fullName isOnline lastLogout');
         console.log('User Statuses:');
         console.table(users.map(u => ({

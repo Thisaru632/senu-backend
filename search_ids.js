@@ -1,9 +1,11 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 
+const connectDB = require('./config/db');
+
 async function searchIds() {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        await connectDB();
         const ids = ["6996adc8b37851fb862879e5", "6996b011b37851fb862879fe", "6996c8b42811348810062951", "6996d4ab0c02d956130ad19a"];
 
         const collections = await mongoose.connection.db.listCollections().toArray();

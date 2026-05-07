@@ -1,9 +1,11 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 
+const connectDB = require('./config/db');
+
 async function debugDB() {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        await connectDB();
         console.log('DB Name:', mongoose.connection.name);
 
         const collections = await mongoose.connection.db.listCollections().toArray();

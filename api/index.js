@@ -17,48 +17,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 // HIGH PRIORITY DEBUG
 app.get('/api/ping', (req, res) => res.json({ message: 'pong' }));
 
-// Database Connection for Serverless
-// Use a global variable to cache the connection promise
-let cachedConnection = null;
-
-const connectDB = async () => {
-    // If we already have a connection, return it
-    if (mongoose.connection.readyState === 1) {
-        return mongoose.connection;
-    }
-
-    // If a connection is already in progress, wait for it
-    if (cachedConnection) {
-        return cachedConnection;
-    }
-
-    if (!process.env.MONGO_URI) {
-        console.error('CRITICAL: MONGO_URI is not defined in environment variables');
-        throw new Error('MONGO_URI is missing');
-    }
-
-    // Options to optimize for serverless and prevent connection spikes
-    const options = {
-        maxPoolSize: 5, // Small pool per instance to balance performance and connection limits
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000,
-        family: 4, // Force IPv4
-        heartbeatFrequencyMS: 10000, // Frequent heartbeats to keep connection alive
-    };
-
-    console.log('Initializing new MongoDB connection...');
-    cachedConnection = mongoose.connect(process.env.MONGO_URI, options);
-
-    try {
-        const db = await cachedConnection;
-        console.log('MongoDB Connected Successfully (Pool Size: 5)');
-        return db;
-    } catch (err) {
-        cachedConnection = null; // Reset on failure
-        console.error('MongoDB Connection Error:', err);
-        throw err;
-    }
-};
+const connectDB = require("../config/db");
 
 // Middleware to ensure DB connection before handling request
 app.use(async (req, res, next) => {
@@ -138,7 +97,6 @@ if (require.main === module) {
     const PORT = process.env.PORT || 5001;
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
-        // Connect to DB after starting the server
         connectDB().catch(err => {
             console.error('Initial MongoDB connection failed:', err);
         });

@@ -7,9 +7,11 @@ const PROVINCES = [
     'Sabaragamuwa', 'North Central', 'Uva', 'Eastern', 'Northern'
 ];
 
+const connectDB = require('./config/db');
+
 (async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
+        await connectDB();
         // Initializing with no blocked provinces (all activated)
         await GlobalSetting.findOneAndUpdate(
             { key: 'blockedProvinces' },

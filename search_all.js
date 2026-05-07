@@ -1,9 +1,11 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 
+const connectDB = require('./config/db');
+
 async function searchEverywhere() {
     try {
-        const client = await mongoose.connect(process.env.MONGO_URI);
+        const client = await connectDB();
         const admin = mongoose.connection.db.admin();
         const dbs = await admin.listDatabases();
 

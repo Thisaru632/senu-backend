@@ -3,11 +3,10 @@ console.log('URI:', process.env.MONGO_URI ? 'FOUND' : 'NOT FOUND');
 const mongoose = require('mongoose');
 const Booking = require('./models/Booking');
 
+const connectDB = require('./config/db');
+
 async function check() {
-    if (!process.env.MONGO_URI) {
-        throw new Error('MONGO_URI not found in env');
-    }
-    await mongoose.connect(process.env.MONGO_URI);
+    await connectDB();
     console.log('Connected');
 
     const lastBookings = await Booking.find({}, { customId: 1, createdAt: 1 }).sort({ createdAt: -1 }).limit(10);

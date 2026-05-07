@@ -21,9 +21,11 @@ const RateAdjustmentSchema = new mongoose.Schema({
 
 const RateAdjustment = mongoose.model('RateAdjustment', RateAdjustmentSchema);
 
+const connectDB = require('./config/db');
+
 async function check() {
     try {
-        await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/senu-tours');
+        await connectDB();
         console.log('Connected to MongoDB');
         
         const adjustments = await RateAdjustment.find();
