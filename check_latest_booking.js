@@ -1,8 +1,7 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
-const Booking = require('./models/Booking');
-
 const connectDB = require('./config/db');
+const Booking = require('./models/Booking');
 
 async function check() {
     await connectDB();

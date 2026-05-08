@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const path = require('path');
+const connectDB = require('./config/db');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -20,8 +21,6 @@ const RateAdjustmentSchema = new mongoose.Schema({
 }, { strict: false });
 
 const RateAdjustment = mongoose.model('RateAdjustment', RateAdjustmentSchema);
-
-const connectDB = require('./config/db');
 
 async function check() {
     try {

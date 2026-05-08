@@ -20,7 +20,7 @@ connectDB().catch(err => {
   process.exit(1);
 });
 
-// Start server
+
 const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

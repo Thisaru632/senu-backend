@@ -1,9 +1,8 @@
 require('dotenv').config();
 console.log('URI:', process.env.MONGO_URI ? 'FOUND' : 'NOT FOUND');
 const mongoose = require('mongoose');
-const Booking = require('./models/Booking');
-
 const connectDB = require('./config/db');
+const Booking = require('./models/Booking');
 
 async function check() {
     await connectDB();

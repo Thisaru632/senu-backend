@@ -1,13 +1,12 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
+const connectDB = require('./config/db');
 const GlobalSetting = require('./models/GlobalSetting');
 
 const PROVINCES = [
     'Western', 'Central', 'Southern', 'North Western', 
     'Sabaragamuwa', 'North Central', 'Uva', 'Eastern', 'Northern'
 ];
-
-const connectDB = require('./config/db');
 
 (async () => {
     try {

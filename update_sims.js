@@ -1,10 +1,9 @@
 const mongoose = require('mongoose');
 const Sim = require('./models/Sim');
+const connectDB = require('./config/db');
 const dotenv = require('dotenv');
 
 dotenv.config();
-
-const connectDB = require('./config/db');
 
 const updateSims = async () => {
     try {

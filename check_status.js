@@ -1,8 +1,7 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
-const Staff = require('./models/Staff');
-
 const connectDB = require('./config/db');
+const Staff = require('./models/Staff');
 
 async function checkStatus() {
     try {

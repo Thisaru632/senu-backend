@@ -8,16 +8,13 @@ if (!MONGO_URI) {
 
 /**
  * Global is used here to maintain a cached connection across hot reloads
- * in development. This prevents connections growing exponentially
+ * in development. This prevents connections from growing exponentially
  * during API Route usage.
  */
 let cached = global.mongoose;
 
 if (!cached) {
-  cached = global.mongoose = {
-    conn: null,
-    promise: null,
-  };
+  cached = global.mongoose = { conn: null, promise: null };
 }
 
 async function connectDB() {
@@ -26,26 +23,20 @@ async function connectDB() {
   }
 
   if (!cached.promise) {
-    const options = {
+    const opts = {
       bufferCommands: false,
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      family: 4, // Force IPv4
     };
 
-    console.log("Initializing new MongoDB connection...");
-    cached.promise = mongoose
-      .connect(MONGO_URI, options)
-      .then((mongooseInstance) => {
-        console.log("MongoDB Connected Successfully");
-        return mongooseInstance;
-      })
-      .catch((err) => {
+    cached.promise = mongoose.connect(MONGO_URI, opts).then((mongoose) => {
+      console.log("MongoDB Connected Successfully");
+      return mongoose;
+    }).catch((err) => {
         cached.promise = null;
-        console.error("MongoDB Connection Error:", err);
         throw err;
-      });
+    });
   }
 
   try {
