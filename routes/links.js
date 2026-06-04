@@ -59,4 +59,31 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// @route   PUT /api/links/:id
+// @desc    Update a link
+// @access  Public/Admin
+router.put('/:id', async (req, res) => {
+  const { title, url, description } = req.body;
+
+  try {
+    let link = await Link.findById(req.params.id);
+    if (!link) return res.status(404).json({ msg: 'Link not found' });
+
+    link.title = title || link.title;
+    link.url = url || link.url;
+    if (description !== undefined) {
+      link.description = description;
+    }
+
+    link = await link.save();
+    res.json(link);
+  } catch (err) {
+    console.error(err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Link not found' });
+    }
+    res.status(500).send('Server Error');
+  }
+});
+
 module.exports = router;
