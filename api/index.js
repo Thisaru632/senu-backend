@@ -45,6 +45,7 @@ const cabServiceRoutes = require('../routes/cabServiceRoutes');
 const cabRateRoutes = require('../routes/cabRateRoutes');
 const simRoutes = require('../routes/simRoutes');
 const vehicleRegistrationRoutes = require('../routes/vehicleRegistrationRoutes');
+const linksRoutes = require('../routes/links');
 
 
 app.use('/api/bookings', bookingRoutes);
@@ -59,6 +60,7 @@ app.use('/api/cab-service', cabServiceRoutes);
 app.use('/api/cab-rates', cabRateRoutes);
 app.use('/api/sims', simRoutes);
 app.use('/api/vehicle-registrations', vehicleRegistrationRoutes);
+app.use('/api/links', linksRoutes);
 
 
 
