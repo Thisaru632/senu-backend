@@ -127,4 +127,28 @@ router.get('/', async (req, res) => {
     }
 });
 
+/**
+ * @route   PATCH /api/super-team/:id/status
+ * @desc    Update status (Approved/Rejected)
+ */
+router.patch('/:id/status', async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['Approved', 'Rejected'].includes(status)) {
+            return res.status(400).json({ message: 'Invalid status' });
+        }
+        const member = await SuperTeamMember.findByIdAndUpdate(
+            req.params.id,
+            { status },
+            { new: true }
+        );
+        if (!member) {
+            return res.status(404).json({ message: 'Member not found' });
+        }
+        res.json({ message: `Status updated to ${status}`, member });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 module.exports = router;
