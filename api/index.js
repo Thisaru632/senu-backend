@@ -46,6 +46,7 @@ const cabRateRoutes = require('../routes/cabRateRoutes');
 const simRoutes = require('../routes/simRoutes');
 const vehicleRegistrationRoutes = require('../routes/vehicleRegistrationRoutes');
 const linksRoutes = require('../routes/links');
+const superTeamRoutes = require('../routes/superTeamRoutes');
 
 
 app.use('/api/bookings', bookingRoutes);
@@ -61,6 +62,7 @@ app.use('/api/cab-rates', cabRateRoutes);
 app.use('/api/sims', simRoutes);
 app.use('/api/vehicle-registrations', vehicleRegistrationRoutes);
 app.use('/api/links', linksRoutes);
+app.use('/api/super-team', superTeamRoutes);
 
 
 
