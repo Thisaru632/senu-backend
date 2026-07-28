@@ -83,6 +83,10 @@ const BookingSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.Mixed,
         default: null
     },
+    additionalHours: {
+        type: Number,
+        default: 0
+    },
     remark: {
         type: String,
         default: ''
