@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const Staff = require('../models/Staff');
+const Attendance = require('../models/Attendance');
 const Customer = require('../models/Customer');
 const Booking = require('../models/Booking');
 const Contact = require('../models/Contact');
@@ -156,6 +157,277 @@ router.post('/login', async (req, res) => {
         }
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc    Clock in staff member by E NO and password
+// @route   POST /api/auth/clock-in
+// @access  Public
+router.post('/clock-in', async (req, res) => {
+    try {
+        const { eNo, password } = req.body;
+
+        if (!eNo || !password) {
+            return res.status(400).json({ message: 'Please enter both E NO and Password' });
+        }
+
+        const trimmedENo = eNo.trim();
+        const escapedENo = trimmedENo.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+
+        // Find staff by eNo (exact or regex match)
+        let staff = await Staff.findOne({
+            eNo: { $regex: new RegExp(`^${escapedENo}$`, 'i') }
+        }).select('+password');
+
+        // Fallback matching if eNo not found directly
+        if (!staff) {
+            staff = await Staff.findOne({
+                $or: [
+                    { username: { $regex: new RegExp(`^${escapedENo}$`, 'i') } },
+                    { eNo: { $regex: new RegExp(escapedENo.replace('-', ''), 'i') } }
+                ]
+            }).select('+password');
+        }
+
+        if (!staff) {
+            return res.status(404).json({ message: `No staff user found with E NO: ${trimmedENo}` });
+        }
+
+        const isMatch = await staff.comparePassword(password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid password for this E NO' });
+        }
+
+        if (staff.status !== 'active') {
+            return res.status(403).json({ message: 'Your staff account is not active' });
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const clockInTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        // Update staff online status
+        staff.isOnline = true;
+        staff.lastActive = new Date();
+        await staff.save();
+
+        // Check if there is an active session (status: 'Clocked In') for today
+        let attendanceRecord = await Attendance.findOne({
+            staffId: staff._id,
+            date: todayStr,
+            status: 'Clocked In'
+        });
+
+        if (attendanceRecord) {
+            attendanceRecord.status = 'Clocked In';
+            attendanceRecord.clockInTime = clockInTimeStr;
+            attendanceRecord.clockOutTime = 'Active Session';
+            await attendanceRecord.save();
+        } else {
+            attendanceRecord = await Attendance.create({
+                staffId: staff._id,
+                eNo: staff.eNo || trimmedENo,
+                fullName: staff.fullName,
+                email: staff.email,
+                date: todayStr,
+                clockInTime: clockInTimeStr,
+                clockOutTime: 'Active Session',
+                status: 'Clocked In'
+            });
+        }
+
+        res.json({
+            message: `Successfully Clocked In as ${staff.fullName}!`,
+            record: {
+                eNo: staff.eNo || trimmedENo,
+                name: staff.fullName,
+                email: staff.email,
+                clockInTime: clockInTimeStr,
+                date: todayStr,
+                status: 'Clocked In'
+            }
+        });
+    } catch (error) {
+        console.error('Clock in error:', error);
+        res.status(500).json({ message: error.message || 'Server error during clock in' });
+    }
+});
+
+// @desc    Check clock-in status by E NO
+// @route   POST /api/auth/clock-status
+// @access  Public
+router.post('/clock-status', async (req, res) => {
+    try {
+        const { eNo } = req.body;
+        if (!eNo || !eNo.trim()) {
+            return res.json({ isClockedIn: false });
+        }
+
+        const trimmedENo = eNo.trim();
+        const escapedENo = trimmedENo.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        // Find staff by eNo
+        let staff = await Staff.findOne({
+            $or: [
+                { eNo: { $regex: new RegExp(`^${escapedENo}$`, 'i') } },
+                { username: { $regex: new RegExp(`^${escapedENo}$`, 'i') } }
+            ]
+        });
+
+        if (!staff) {
+            return res.json({ isClockedIn: false });
+        }
+
+        const activeRecord = await Attendance.findOne({
+            staffId: staff._id,
+            date: todayStr,
+            status: 'Clocked In'
+        });
+
+        res.json({
+            isClockedIn: !!activeRecord,
+            record: activeRecord || null
+        });
+    } catch (error) {
+        res.status(500).json({ isClockedIn: false });
+    }
+});
+
+// @desc    Clock out staff member by E NO and password
+// @route   POST /api/auth/clock-out
+// @access  Public
+router.post('/clock-out', async (req, res) => {
+    try {
+        const { eNo, password } = req.body;
+
+        if (!eNo || !password) {
+            return res.status(400).json({ message: 'Please enter both E NO and Password' });
+        }
+
+        const trimmedENo = eNo.trim();
+        const escapedENo = trimmedENo.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+
+        // Find staff by eNo
+        let staff = await Staff.findOne({
+            $or: [
+                { eNo: { $regex: new RegExp(`^${escapedENo}$`, 'i') } },
+                { username: { $regex: new RegExp(`^${escapedENo}$`, 'i') } }
+            ]
+        }).select('+password');
+
+        if (!staff) {
+            return res.status(404).json({ message: `No staff user found with E NO: ${trimmedENo}` });
+        }
+
+        const isMatch = await staff.comparePassword(password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid password for this E NO' });
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const clockOutTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        // Update staff online status
+        staff.isOnline = false;
+        await staff.save();
+
+        let attendanceRecord = await Attendance.findOne({
+            staffId: staff._id,
+            date: todayStr,
+            status: 'Clocked In'
+        });
+
+        if (!attendanceRecord) {
+            attendanceRecord = await Attendance.findOne({
+                staffId: staff._id,
+                date: todayStr
+            });
+        }
+
+        if (attendanceRecord) {
+            attendanceRecord.status = 'Clocked Out';
+            attendanceRecord.clockOutTime = clockOutTimeStr;
+            await attendanceRecord.save();
+        } else {
+            attendanceRecord = await Attendance.create({
+                staffId: staff._id,
+                eNo: staff.eNo || trimmedENo,
+                fullName: staff.fullName,
+                email: staff.email,
+                date: todayStr,
+                clockInTime: '08:30 AM',
+                clockOutTime: clockOutTimeStr,
+                status: 'Clocked Out'
+            });
+        }
+
+        res.json({
+            message: `Successfully Clocked Out as ${staff.fullName}!`,
+            record: {
+                eNo: staff.eNo || trimmedENo,
+                name: staff.fullName,
+                email: staff.email,
+                clockOutTime: clockOutTimeStr,
+                date: todayStr,
+                status: 'Clocked Out'
+            }
+        });
+    } catch (error) {
+        console.error('Clock out error:', error);
+        res.status(500).json({ message: error.message || 'Server error during clock out' });
+    }
+});
+
+// @desc    Get daily staff attendance logs (ONLY users who clocked in via Clock in/out screen)
+// @route   GET /api/auth/attendance
+// @access  Public
+router.get('/attendance', async (req, res) => {
+    try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        // Fetch ONLY actual clock in records for today from Attendance database
+        const todayLogs = await Attendance.find({ date: todayStr }).sort({ updatedAt: -1 });
+
+        const attendanceSheet = todayLogs.map(log => ({
+            id: log._id,
+            eNo: log.eNo,
+            name: log.fullName,
+            email: log.email,
+            date: log.date,
+            clockInTime: log.clockInTime,
+            clockOutTime: log.clockOutTime || 'Active Session',
+            status: log.status || 'Clocked In'
+        }));
+
+        res.json(attendanceSheet);
+    } catch (error) {
+        console.error('Fetch attendance error:', error);
+        res.status(500).json({ message: error.message || 'Failed to fetch attendance sheet' });
+    }
+});
+
+// @desc    Update attendance log by ID
+// @route   PUT /api/auth/attendance/:id
+// @access  Public
+router.put('/attendance/:id', async (req, res) => {
+    try {
+        const { clockInTime, clockOutTime, status } = req.body;
+        const attendance = await Attendance.findById(req.params.id);
+
+        if (!attendance) {
+            return res.status(404).json({ message: 'Attendance record not found' });
+        }
+
+        if (clockInTime !== undefined) attendance.clockInTime = clockInTime;
+        if (clockOutTime !== undefined) attendance.clockOutTime = clockOutTime;
+        if (status !== undefined) attendance.status = status;
+
+        await attendance.save();
+
+        res.json({ message: 'Attendance record updated successfully', attendance });
+    } catch (error) {
+        console.error('Update attendance error:', error);
+        res.status(500).json({ message: error.message || 'Failed to update attendance record' });
     }
 });
 
@@ -417,7 +689,7 @@ router.get('/users', protect, superAdminOnly, async (req, res) => {
             { isOnline: false }
         );
 
-        const users = await Staff.find({}, 'username fullName email role isOnline createdAt permissions status lastActive');
+        const users = await Staff.find({}, 'username fullName email role isOnline createdAt permissions status lastActive eNo');
         res.json(users);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -439,7 +711,7 @@ router.get('/users/:id', protect, superAdminOnly, async (req, res) => {
 
 router.put('/users/:id', protect, superAdminOnly, async (req, res) => {
     try {
-        const { role, permissions, status } = req.body;
+        const { role, permissions, status, eNo, fullName, name } = req.body;
         const user = await Staff.findById(req.params.id);
 
         if (!user) {
@@ -449,6 +721,9 @@ router.put('/users/:id', protect, superAdminOnly, async (req, res) => {
         if (role) user.role = role;
         if (permissions) user.permissions = permissions;
         if (status) user.status = status;
+        if (eNo !== undefined) user.eNo = eNo;
+        if (fullName !== undefined) user.fullName = fullName;
+        if (name !== undefined) user.fullName = name;
 
         await user.save();
         res.json({ message: 'User updated successfully', user });

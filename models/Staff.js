@@ -20,6 +20,11 @@ const staffSchema = new mongoose.Schema({
         lowercase: true,
         trim: true
     },
+    eNo: {
+        type: String,
+        trim: true,
+        default: ''
+    },
     isOnline: {
         type: Boolean,
         default: false
@@ -35,7 +40,7 @@ const staffSchema = new mongoose.Schema({
     password: {
         type: String,
         required: [true, 'Please provide a password'],
-        minlength: 6,
+        minlength: 4,
         select: false // Don't return password by default
     },
     role: {
