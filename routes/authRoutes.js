@@ -173,21 +173,17 @@ router.post('/clock-in', async (req, res) => {
 
         const trimmedENo = eNo.trim();
         const escapedENo = trimmedENo.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+        const cleanedENo = trimmedENo.replace(/[^a-zA-Z0-9]/g, '');
 
-        // Find staff by eNo (exact or regex match)
+        // Find staff by eNo (exact or regex match from MongoDB Staff collection)
         let staff = await Staff.findOne({
-            eNo: { $regex: new RegExp(`^${escapedENo}$`, 'i') }
+            $or: [
+                { eNo: { $regex: new RegExp(`^${escapedENo}$`, 'i') } },
+                { eNo: { $regex: new RegExp(cleanedENo, 'i') } },
+                { username: { $regex: new RegExp(`^${escapedENo}$`, 'i') } },
+                { email: { $regex: new RegExp(`^${escapedENo}$`, 'i') } }
+            ]
         }).select('+password');
-
-        // Fallback matching if eNo not found directly
-        if (!staff) {
-            staff = await Staff.findOne({
-                $or: [
-                    { username: { $regex: new RegExp(`^${escapedENo}$`, 'i') } },
-                    { eNo: { $regex: new RegExp(escapedENo.replace('-', ''), 'i') } }
-                ]
-            }).select('+password');
-        }
 
         if (!staff) {
             return res.status(404).json({ message: `No staff user found with E NO: ${trimmedENo}` });
@@ -198,8 +194,9 @@ router.post('/clock-in', async (req, res) => {
             return res.status(401).json({ message: 'Invalid password for this E NO' });
         }
 
-        if (staff.status !== 'active') {
-            return res.status(403).json({ message: 'Your staff account is not active' });
+        // Activate staff account if pending
+        if (staff.status === 'pending') {
+            staff.status = 'active';
         }
 
         const todayStr = new Date().toISOString().split('T')[0];
@@ -306,12 +303,15 @@ router.post('/clock-out', async (req, res) => {
 
         const trimmedENo = eNo.trim();
         const escapedENo = trimmedENo.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+        const cleanedENo = trimmedENo.replace(/[^a-zA-Z0-9]/g, '');
 
-        // Find staff by eNo
+        // Find staff by eNo from MongoDB Staff collection
         let staff = await Staff.findOne({
             $or: [
                 { eNo: { $regex: new RegExp(`^${escapedENo}$`, 'i') } },
-                { username: { $regex: new RegExp(`^${escapedENo}$`, 'i') } }
+                { eNo: { $regex: new RegExp(cleanedENo, 'i') } },
+                { username: { $regex: new RegExp(`^${escapedENo}$`, 'i') } },
+                { email: { $regex: new RegExp(`^${escapedENo}$`, 'i') } }
             ]
         }).select('+password');
 
