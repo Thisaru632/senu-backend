@@ -21,6 +21,60 @@ const generateToken = (id, role) => {
     });
 };
 
+// Calculate distance between two coordinates in meters (Haversine formula)
+const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000; // Earth radius in meters
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in meters
+};
+
+// Verify if user GPS location is inside office geofence radius
+const verifyOfficeLocation = (latitude, longitude) => {
+    const officeLat = parseFloat(process.env.OFFICE_LAT || '6.9271');
+    const officeLng = parseFloat(process.env.OFFICE_LNG || '79.8612');
+    const allowedRadius = parseFloat(process.env.OFFICE_ALLOWED_RADIUS_METERS || '100'); // 100 meters
+
+    if (latitude === undefined || latitude === null || longitude === undefined || longitude === null) {
+        return {
+            isValid: false,
+            message: 'Location access is required to Clock In / Out. Please enable GPS location services on your device.'
+        };
+    }
+
+    const userLat = parseFloat(latitude);
+    const userLng = parseFloat(longitude);
+
+    if (isNaN(userLat) || isNaN(userLng)) {
+        return {
+            isValid: false,
+            message: 'Invalid GPS coordinates received.'
+        };
+    }
+
+    const distance = getDistanceFromLatLonInMeters(userLat, userLng, officeLat, officeLng);
+
+    if (distance > allowedRadius) {
+        return {
+            isValid: false,
+            distance: Math.round(distance),
+            allowedRadius,
+            message: `Access Denied: You are ${Math.round(distance)}m away from the office. Clock In / Out is only permitted within ${allowedRadius}m of the office location.`
+        };
+    }
+
+    return {
+        isValid: true,
+        distance: Math.round(distance),
+        allowedRadius
+    };
+};
+
 // @desc    Get notification counts (unread leads)
 // @route   GET /api/auth/notifications/count
 router.get('/notifications/count', async (req, res) => {
@@ -165,10 +219,16 @@ router.post('/login', async (req, res) => {
 // @access  Public
 router.post('/clock-in', async (req, res) => {
     try {
-        const { eNo, password } = req.body;
+        const { eNo, password, latitude, longitude } = req.body;
 
         if (!eNo || !password) {
             return res.status(400).json({ message: 'Please enter both E NO and Password' });
+        }
+
+        // Verify Office GPS Geofence Location
+        const locCheck = verifyOfficeLocation(latitude, longitude);
+        if (!locCheck.isValid) {
+            return res.status(403).json({ message: locCheck.message });
         }
 
         const trimmedENo = eNo.trim();
@@ -207,6 +267,8 @@ router.post('/clock-in', async (req, res) => {
         staff.lastActive = new Date();
         await staff.save();
 
+        const userLocation = { lat: parseFloat(latitude), lng: parseFloat(longitude) };
+
         // Check if there is an active session (status: 'Clocked In') for today
         let attendanceRecord = await Attendance.findOne({
             staffId: staff._id,
@@ -218,6 +280,7 @@ router.post('/clock-in', async (req, res) => {
             attendanceRecord.status = 'Clocked In';
             attendanceRecord.clockInTime = clockInTimeStr;
             attendanceRecord.clockOutTime = 'Active Session';
+            attendanceRecord.clockInLocation = userLocation;
             await attendanceRecord.save();
         } else {
             attendanceRecord = await Attendance.create({
@@ -228,7 +291,8 @@ router.post('/clock-in', async (req, res) => {
                 date: todayStr,
                 clockInTime: clockInTimeStr,
                 clockOutTime: 'Active Session',
-                status: 'Clocked In'
+                status: 'Clocked In',
+                clockInLocation: userLocation
             });
         }
 
@@ -295,10 +359,16 @@ router.post('/clock-status', async (req, res) => {
 // @access  Public
 router.post('/clock-out', async (req, res) => {
     try {
-        const { eNo, password } = req.body;
+        const { eNo, password, latitude, longitude } = req.body;
 
         if (!eNo || !password) {
             return res.status(400).json({ message: 'Please enter both E NO and Password' });
+        }
+
+        // Verify Office GPS Geofence Location
+        const locCheck = verifyOfficeLocation(latitude, longitude);
+        if (!locCheck.isValid) {
+            return res.status(403).json({ message: locCheck.message });
         }
 
         const trimmedENo = eNo.trim();
@@ -331,6 +401,8 @@ router.post('/clock-out', async (req, res) => {
         staff.isOnline = false;
         await staff.save();
 
+        const userLocation = { lat: parseFloat(latitude), lng: parseFloat(longitude) };
+
         let attendanceRecord = await Attendance.findOne({
             staffId: staff._id,
             date: todayStr,
@@ -347,6 +419,7 @@ router.post('/clock-out', async (req, res) => {
         if (attendanceRecord) {
             attendanceRecord.status = 'Clocked Out';
             attendanceRecord.clockOutTime = clockOutTimeStr;
+            attendanceRecord.clockOutLocation = userLocation;
             await attendanceRecord.save();
         } else {
             attendanceRecord = await Attendance.create({
@@ -357,7 +430,8 @@ router.post('/clock-out', async (req, res) => {
                 date: todayStr,
                 clockInTime: '08:30 AM',
                 clockOutTime: clockOutTimeStr,
-                status: 'Clocked Out'
+                status: 'Clocked Out',
+                clockOutLocation: userLocation
             });
         }
 
@@ -405,6 +479,162 @@ router.get('/attendance', async (req, res) => {
         res.status(500).json({ message: error.message || 'Failed to fetch attendance sheet' });
     }
 });
+
+// @desc    Get user-wise monthly attendance summary (all staff members, 1 row per user)
+// @route   GET /api/auth/monthly-attendance?month=YYYY-MM
+// @access  Public
+router.get('/monthly-attendance', async (req, res) => {
+    try {
+        const monthQuery = req.query.month || new Date().toISOString().slice(0, 7); // Default e.g. "2026-08"
+        const [yearStr, monthStr] = monthQuery.split('-');
+        const year = parseInt(yearStr, 10);
+        const month = parseInt(monthStr, 10);
+
+        // Days in month
+        const totalDaysInMonth = new Date(year, month, 0).getDate();
+        const totalWorkingDays = Math.min(22, totalDaysInMonth);
+
+        // Format Month Label e.g. "August 2026"
+        const monthDate = new Date(year, month - 1, 1);
+        const monthLabel = monthDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+        // Fetch all registered staff members
+        const staffMembers = await Staff.find({ status: { $ne: 'rejected' } }).select('eNo fullName username email avatar role');
+
+        // Fetch all Attendance logs matching monthQuery (e.g. date matching "^2026-08")
+        const monthRegex = new RegExp(`^${monthQuery}`);
+        const monthlyLogs = await Attendance.find({ date: { $regex: monthRegex } }).sort({ date: 1, updatedAt: -1 });
+
+        // Helper to parse duration in minutes
+        const calculateDurationMinutes = (clockInStr, clockOutStr) => {
+            if (!clockInStr || !clockOutStr || clockOutStr === 'Active Session' || clockOutStr === '-') {
+                return 0;
+            }
+            try {
+                const parseTime = (timeStr) => {
+                    const match = timeStr.match(/(\d+):(\d+)(?::(\d+))?\s*(AM|PM)?/i);
+                    if (!match) return null;
+                    let hours = parseInt(match[1], 10);
+                    const minutes = parseInt(match[2], 10);
+                    const seconds = match[3] ? parseInt(match[3], 10) : 0;
+                    const ampm = match[4] ? match[4].toUpperCase() : null;
+
+                    if (ampm === 'PM' && hours < 12) hours += 12;
+                    if (ampm === 'AM' && hours === 12) hours = 0;
+
+                    const date = new Date();
+                    date.setHours(hours, minutes, seconds, 0);
+                    return date;
+                };
+
+                const inTime = parseTime(clockInStr);
+                const outTime = parseTime(clockOutStr);
+                if (!inTime || !outTime) return 0;
+
+                let diffMs = outTime.getTime() - inTime.getTime();
+                if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
+                return Math.floor(diffMs / (1000 * 60));
+            } catch (e) {
+                return 0;
+            }
+        };
+
+        const formatMinutesToString = (totalMins) => {
+            if (!totalMins || totalMins <= 0) return '0 hrs';
+            const hrs = Math.floor(totalMins / 60);
+            const mins = Math.round(totalMins % 60);
+
+            if (hrs === 0 && mins === 0) return '0 hrs';
+            if (hrs === 0) return `${mins}m`;
+            if (mins === 0) return `${hrs}h`;
+            return `${hrs}h ${mins}m`;
+        };
+
+        // Group logs by user
+        const logsByUser = new Map();
+        monthlyLogs.forEach(log => {
+            const key = (log.eNo || log.email || '').toLowerCase().trim();
+            if (!key) return;
+            if (!logsByUser.has(key)) {
+                logsByUser.set(key, []);
+            }
+            logsByUser.get(key).push(log);
+        });
+
+        const monthlySummary = [];
+        const processedKeys = new Set();
+
+        const processUserSummary = (staffObj) => {
+            const key = (staffObj.eNo || staffObj.email || staffObj.username || '').toLowerCase().trim();
+            if (!key || processedKeys.has(key)) return;
+            processedKeys.add(key);
+
+            const userLogs = logsByUser.get(key) || [];
+            
+            // Dates where user was present
+            const presentDates = new Set(userLogs.map(l => l.date));
+            const daysPresent = presentDates.size;
+            const daysAbsent = Math.max(0, totalWorkingDays - daysPresent);
+
+            let totalMinsNum = 0;
+            let otMinsNum = 0;
+            let shortLeavesCount = 0;
+
+            const dailyMinutesMap = new Map();
+            userLogs.forEach(l => {
+                const mins = calculateDurationMinutes(l.clockInTime, l.clockOutTime);
+                dailyMinutesMap.set(l.date, (dailyMinutesMap.get(l.date) || 0) + mins);
+            });
+
+            dailyMinutesMap.forEach((dayMins) => {
+                totalMinsNum += dayMins;
+                if (dayMins > 480) { // > 8 hours
+                    otMinsNum += (dayMins - 480);
+                }
+                if (dayMins > 0 && dayMins < 240) { // < 4 hours
+                    shortLeavesCount += 1;
+                }
+            });
+
+            const formattedTotalHours = formatMinutesToString(totalMinsNum);
+            const formattedOtHours = formatMinutesToString(otMinsNum);
+
+            monthlySummary.push({
+                id: staffObj._id ? staffObj._id.toString() : (staffObj.id || key),
+                eNo: staffObj.eNo || 'N/A',
+                name: staffObj.fullName || staffObj.name || staffObj.username || 'Staff User',
+                email: staffObj.email || '',
+                avatar: staffObj.avatar || '',
+                month: monthLabel,
+                totalDays: totalWorkingDays,
+                daysPresent,
+                daysAbsent,
+                shortLeaves: shortLeavesCount,
+                leaves: daysAbsent,
+                totalHours: formattedTotalHours,
+                otHours: formattedOtHours,
+            });
+        };
+
+        // 1. Process staff members
+        staffMembers.forEach(staff => processUserSummary(staff));
+
+        // 2. Process any additional users found in logs
+        monthlyLogs.forEach(log => processUserSummary({
+            id: log._id.toString(),
+            eNo: log.eNo,
+            name: log.fullName,
+            email: log.email,
+            avatar: ''
+        }));
+
+        res.json(monthlySummary);
+    } catch (error) {
+        console.error('Fetch monthly attendance error:', error);
+        res.status(500).json({ message: error.message || 'Failed to fetch monthly attendance' });
+    }
+});
+
 
 // @desc    Update attendance log by ID
 // @route   PUT /api/auth/attendance/:id
