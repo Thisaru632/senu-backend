@@ -26,6 +26,10 @@ const attendanceSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    clockOutDate: {
+        type: String,
+        default: ''
+    },
     clockOutTime: {
         type: String,
         default: 'Active Session'

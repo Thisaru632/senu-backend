@@ -349,6 +349,7 @@ router.post('/clock-out', async (req, res) => {
         if (attendanceRecord) {
             attendanceRecord.status = 'Clocked Out';
             attendanceRecord.clockOutTime = clockOutTimeStr;
+            attendanceRecord.clockOutDate = todayStr;
             if (location) attendanceRecord.clockOutLocation = location;
             await attendanceRecord.save();
         } else {
@@ -358,6 +359,7 @@ router.post('/clock-out', async (req, res) => {
                 fullName: staff.fullName,
                 email: staff.email,
                 date: todayStr,
+                clockOutDate: todayStr,
                 clockInTime: '08:30 AM',
                 clockOutTime: clockOutTimeStr,
                 clockOutLocation: location || '',
@@ -387,17 +389,24 @@ router.post('/clock-out', async (req, res) => {
 // @access  Public
 router.get('/attendance', async (req, res) => {
     try {
-        const todayStr = new Date().toISOString().split('T')[0];
-        
-        // Fetch ONLY actual clock in records for today from Attendance database
-        const todayLogs = await Attendance.find({ date: todayStr }).sort({ updatedAt: -1 });
+        let query = {};
+        if (req.query.month) {
+            query.date = { $regex: new RegExp(`^${req.query.month}`) };
+        } else if (req.query.all !== 'true') {
+            const todayStr = new Date().toISOString().split('T')[0];
+            query.date = todayStr;
+        }
 
-        const attendanceSheet = todayLogs.map(log => ({
+        const logs = await Attendance.find(query).sort({ date: -1, updatedAt: -1 });
+
+        const attendanceSheet = logs.map(log => ({
             id: log._id,
             eNo: log.eNo,
             name: log.fullName,
             email: log.email,
             date: log.date,
+            clockInDate: log.date,
+            clockOutDate: log.clockOutDate || (log.status === 'Clocked Out' ? log.date : '-'),
             clockInTime: log.clockInTime,
             clockOutTime: log.clockOutTime || 'Active Session',
             clockInLocation: log.clockInLocation || '',
