@@ -30,18 +30,18 @@ const attendanceSchema = new mongoose.Schema({
         type: String,
         default: 'Active Session'
     },
+    clockInLocation: {
+        type: String,
+        default: ''
+    },
+    clockOutLocation: {
+        type: String,
+        default: ''
+    },
     status: {
         type: String,
         enum: ['Clocked In', 'Clocked Out'],
         default: 'Clocked In'
-    },
-    clockInLocation: {
-        lat: Number,
-        lng: Number
-    },
-    clockOutLocation: {
-        lat: Number,
-        lng: Number
     }
 }, { timestamps: true });
 

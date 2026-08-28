@@ -97,8 +97,8 @@ app.use((req, res) => {
 module.exports = app;
 
 // For local development
-if (require.main === module) {
-    const PORT = process.env.PORT || 5001;
+if (require.main === module || (require.main && require.main.filename && require.main.filename.endsWith('server.js'))) {
+    const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
         // Connect to DB after starting the server
@@ -107,3 +107,4 @@ if (require.main === module) {
         });
     });
 }
+

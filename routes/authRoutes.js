@@ -21,60 +21,6 @@ const generateToken = (id, role) => {
     });
 };
 
-// Calculate distance between two coordinates in meters (Haversine formula)
-const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000; // Earth radius in meters
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Distance in meters
-};
-
-// Verify if user GPS location is inside office geofence radius
-const verifyOfficeLocation = (latitude, longitude) => {
-    const officeLat = parseFloat(process.env.OFFICE_LAT || '6.9271');
-    const officeLng = parseFloat(process.env.OFFICE_LNG || '79.8612');
-    const allowedRadius = parseFloat(process.env.OFFICE_ALLOWED_RADIUS_METERS || '100'); // 100 meters
-
-    if (latitude === undefined || latitude === null || longitude === undefined || longitude === null) {
-        return {
-            isValid: false,
-            message: 'Location access is required to Clock In / Out. Please enable GPS location services on your device.'
-        };
-    }
-
-    const userLat = parseFloat(latitude);
-    const userLng = parseFloat(longitude);
-
-    if (isNaN(userLat) || isNaN(userLng)) {
-        return {
-            isValid: false,
-            message: 'Invalid GPS coordinates received.'
-        };
-    }
-
-    const distance = getDistanceFromLatLonInMeters(userLat, userLng, officeLat, officeLng);
-
-    if (distance > allowedRadius) {
-        return {
-            isValid: false,
-            distance: Math.round(distance),
-            allowedRadius,
-            message: `Access Denied: You are ${Math.round(distance)}m away from the office. Clock In / Out is only permitted within ${allowedRadius}m of the office location.`
-        };
-    }
-
-    return {
-        isValid: true,
-        distance: Math.round(distance),
-        allowedRadius
-    };
-};
-
 // @desc    Get notification counts (unread leads)
 // @route   GET /api/auth/notifications/count
 router.get('/notifications/count', async (req, res) => {
@@ -219,16 +165,10 @@ router.post('/login', async (req, res) => {
 // @access  Public
 router.post('/clock-in', async (req, res) => {
     try {
-        const { eNo, password, latitude, longitude } = req.body;
+        const { eNo, password, location } = req.body;
 
         if (!eNo || !password) {
             return res.status(400).json({ message: 'Please enter both E NO and Password' });
-        }
-
-        // Verify Office GPS Geofence Location
-        const locCheck = verifyOfficeLocation(latitude, longitude);
-        if (!locCheck.isValid) {
-            return res.status(403).json({ message: locCheck.message });
         }
 
         const trimmedENo = eNo.trim();
@@ -267,8 +207,6 @@ router.post('/clock-in', async (req, res) => {
         staff.lastActive = new Date();
         await staff.save();
 
-        const userLocation = { lat: parseFloat(latitude), lng: parseFloat(longitude) };
-
         // Check if there is an active session (status: 'Clocked In') for today
         let attendanceRecord = await Attendance.findOne({
             staffId: staff._id,
@@ -280,7 +218,7 @@ router.post('/clock-in', async (req, res) => {
             attendanceRecord.status = 'Clocked In';
             attendanceRecord.clockInTime = clockInTimeStr;
             attendanceRecord.clockOutTime = 'Active Session';
-            attendanceRecord.clockInLocation = userLocation;
+            if (location) attendanceRecord.clockInLocation = location;
             await attendanceRecord.save();
         } else {
             attendanceRecord = await Attendance.create({
@@ -291,8 +229,8 @@ router.post('/clock-in', async (req, res) => {
                 date: todayStr,
                 clockInTime: clockInTimeStr,
                 clockOutTime: 'Active Session',
-                status: 'Clocked In',
-                clockInLocation: userLocation
+                clockInLocation: location || '',
+                status: 'Clocked In'
             });
         }
 
@@ -359,16 +297,10 @@ router.post('/clock-status', async (req, res) => {
 // @access  Public
 router.post('/clock-out', async (req, res) => {
     try {
-        const { eNo, password, latitude, longitude } = req.body;
+        const { eNo, password, location } = req.body;
 
         if (!eNo || !password) {
             return res.status(400).json({ message: 'Please enter both E NO and Password' });
-        }
-
-        // Verify Office GPS Geofence Location
-        const locCheck = verifyOfficeLocation(latitude, longitude);
-        if (!locCheck.isValid) {
-            return res.status(403).json({ message: locCheck.message });
         }
 
         const trimmedENo = eNo.trim();
@@ -401,8 +333,6 @@ router.post('/clock-out', async (req, res) => {
         staff.isOnline = false;
         await staff.save();
 
-        const userLocation = { lat: parseFloat(latitude), lng: parseFloat(longitude) };
-
         let attendanceRecord = await Attendance.findOne({
             staffId: staff._id,
             date: todayStr,
@@ -419,7 +349,7 @@ router.post('/clock-out', async (req, res) => {
         if (attendanceRecord) {
             attendanceRecord.status = 'Clocked Out';
             attendanceRecord.clockOutTime = clockOutTimeStr;
-            attendanceRecord.clockOutLocation = userLocation;
+            if (location) attendanceRecord.clockOutLocation = location;
             await attendanceRecord.save();
         } else {
             attendanceRecord = await Attendance.create({
@@ -430,8 +360,8 @@ router.post('/clock-out', async (req, res) => {
                 date: todayStr,
                 clockInTime: '08:30 AM',
                 clockOutTime: clockOutTimeStr,
-                status: 'Clocked Out',
-                clockOutLocation: userLocation
+                clockOutLocation: location || '',
+                status: 'Clocked Out'
             });
         }
 
@@ -470,6 +400,8 @@ router.get('/attendance', async (req, res) => {
             date: log.date,
             clockInTime: log.clockInTime,
             clockOutTime: log.clockOutTime || 'Active Session',
+            clockInLocation: log.clockInLocation || '',
+            clockOutLocation: log.clockOutLocation || '',
             status: log.status || 'Clocked In'
         }));
 
