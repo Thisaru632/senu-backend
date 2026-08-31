@@ -10,6 +10,28 @@ const crypto = require('crypto');
 const router = express.Router();
 const { protect, superAdminOnly } = require('../middleware/authMiddleware');
 
+// Helper functions for date and time in configured timezone (default Asia/Colombo - UTC+5:30)
+const TIMEZONE = process.env.TIMEZONE || 'Asia/Colombo';
+
+const getLocalDateStr = (date = new Date()) => {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(date);
+};
+
+const getLocalTimeStr = (date = new Date()) => {
+    return new Intl.DateTimeFormat('en-US', {
+        timeZone: TIMEZONE,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+    }).format(date);
+};
+
 // Generate JWT
 const generateToken = (id, role) => {
     let expiry = '1h'; // Default for staff
@@ -199,8 +221,8 @@ router.post('/clock-in', async (req, res) => {
             staff.status = 'active';
         }
 
-        const todayStr = new Date().toISOString().split('T')[0];
-        const clockInTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const todayStr = getLocalDateStr();
+        const clockInTimeStr = getLocalTimeStr();
 
         // Update staff online status
         staff.isOnline = true;
@@ -263,7 +285,7 @@ router.post('/clock-status', async (req, res) => {
 
         const trimmedENo = eNo.trim();
         const escapedENo = trimmedENo.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getLocalDateStr();
 
         // Find staff by eNo
         let staff = await Staff.findOne({
@@ -326,8 +348,8 @@ router.post('/clock-out', async (req, res) => {
             return res.status(401).json({ message: 'Invalid password for this E NO' });
         }
 
-        const todayStr = new Date().toISOString().split('T')[0];
-        const clockOutTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const todayStr = getLocalDateStr();
+        const clockOutTimeStr = getLocalTimeStr();
 
         // Update staff online status
         staff.isOnline = false;
@@ -393,7 +415,7 @@ router.get('/attendance', async (req, res) => {
         if (req.query.month) {
             query.date = { $regex: new RegExp(`^${req.query.month}`) };
         } else if (req.query.all !== 'true') {
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = getLocalDateStr();
             query.date = todayStr;
         }
 
@@ -426,7 +448,7 @@ router.get('/attendance', async (req, res) => {
 // @access  Public
 router.get('/monthly-attendance', async (req, res) => {
     try {
-        const monthQuery = req.query.month || new Date().toISOString().slice(0, 7); // Default e.g. "2026-08"
+        const monthQuery = req.query.month || getLocalDateStr().slice(0, 7); // Default e.g. "2026-08"
         const [yearStr, monthStr] = monthQuery.split('-');
         const year = parseInt(yearStr, 10);
         const month = parseInt(monthStr, 10);
