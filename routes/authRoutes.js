@@ -193,6 +193,10 @@ router.post('/clock-in', async (req, res) => {
             return res.status(400).json({ message: 'Please enter both E NO and Password' });
         }
 
+        if (!location || typeof location !== 'string' || location.includes('Permission Denied') || location.includes('Position Unavailable') || location.includes('Location Error') || location.includes('Location Not Supported') || location.includes('Timed Out')) {
+            return res.status(400).json({ message: 'Location access is required. Please turn on location services on your device to clock in.' });
+        }
+
         const trimmedENo = eNo.trim();
         const escapedENo = trimmedENo.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
         const cleanedENo = trimmedENo.replace(/[^a-zA-Z0-9]/g, '');
@@ -323,6 +327,10 @@ router.post('/clock-out', async (req, res) => {
 
         if (!eNo || !password) {
             return res.status(400).json({ message: 'Please enter both E NO and Password' });
+        }
+
+        if (!location || typeof location !== 'string' || location.includes('Permission Denied') || location.includes('Position Unavailable') || location.includes('Location Error') || location.includes('Location Not Supported') || location.includes('Timed Out')) {
+            return res.status(400).json({ message: 'Location access is required. Please turn on location services on your device to clock out.' });
         }
 
         const trimmedENo = eNo.trim();
