@@ -559,8 +559,8 @@ router.get('/monthly-attendance', async (req, res) => {
 
             dailyMinutesMap.forEach((dayMins) => {
                 totalMinsNum += dayMins;
-                if (dayMins > 480) { // > 8 hours
-                    otMinsNum += (dayMins - 480);
+                if (dayMins > 540) { // > 9 hours
+                    otMinsNum += (dayMins - 540);
                 }
                 if (dayMins > 0 && dayMins < 240) { // < 4 hours
                     shortLeavesCount += 1;
