@@ -233,32 +233,29 @@ router.post('/clock-in', async (req, res) => {
         staff.lastActive = new Date();
         await staff.save();
 
-        // Check if there is an active session (status: 'Clocked In') for today
-        let attendanceRecord = await Attendance.findOne({
+        // Check if there is an active session (status: 'Clocked In') from today or any previous date
+        let existingActive = await Attendance.findOne({
             staffId: staff._id,
-            date: todayStr,
             status: 'Clocked In'
-        });
+        }).sort({ date: -1, createdAt: -1 });
 
-        if (attendanceRecord) {
-            attendanceRecord.status = 'Clocked In';
-            attendanceRecord.clockInTime = clockInTimeStr;
-            attendanceRecord.clockOutTime = 'Active Session';
-            if (location) attendanceRecord.clockInLocation = location;
-            await attendanceRecord.save();
-        } else {
-            attendanceRecord = await Attendance.create({
-                staffId: staff._id,
-                eNo: staff.eNo || trimmedENo,
-                fullName: staff.fullName,
-                email: staff.email,
-                date: todayStr,
-                clockInTime: clockInTimeStr,
-                clockOutTime: 'Active Session',
-                clockInLocation: location || '',
-                status: 'Clocked In'
+        if (existingActive) {
+            return res.status(400).json({
+                message: `You have an active session from ${existingActive.date} (${existingActive.clockInTime}). Please clock out of your previous session before clocking in again.`
             });
         }
+
+        const attendanceRecord = await Attendance.create({
+            staffId: staff._id,
+            eNo: staff.eNo || trimmedENo,
+            fullName: staff.fullName,
+            email: staff.email,
+            date: todayStr,
+            clockInTime: clockInTimeStr,
+            clockOutTime: 'Active Session',
+            clockInLocation: location || '',
+            status: 'Clocked In'
+        });
 
         res.json({
             message: `Successfully Clocked In as ${staff.fullName}!`,
@@ -305,9 +302,8 @@ router.post('/clock-status', async (req, res) => {
 
         const activeRecord = await Attendance.findOne({
             staffId: staff._id,
-            date: todayStr,
             status: 'Clocked In'
-        });
+        }).sort({ date: -1, createdAt: -1 });
 
         res.json({
             isClockedIn: !!activeRecord,
@@ -365,15 +361,14 @@ router.post('/clock-out', async (req, res) => {
 
         let attendanceRecord = await Attendance.findOne({
             staffId: staff._id,
-            date: todayStr,
             status: 'Clocked In'
-        });
+        }).sort({ date: -1, createdAt: -1 });
 
         if (!attendanceRecord) {
             attendanceRecord = await Attendance.findOne({
                 staffId: staff._id,
                 date: todayStr
-            });
+            }).sort({ createdAt: -1 });
         }
 
         if (attendanceRecord) {
@@ -612,14 +607,17 @@ router.get('/monthly-attendance', async (req, res) => {
 // @access  Public
 router.put('/attendance/:id', async (req, res) => {
     try {
-        const { clockInTime, clockOutTime, status } = req.body;
+        const { date, clockInDate, clockInTime, clockOutDate, clockOutTime, status } = req.body;
         const attendance = await Attendance.findById(req.params.id);
 
         if (!attendance) {
             return res.status(404).json({ message: 'Attendance record not found' });
         }
 
+        if (date !== undefined) attendance.date = date;
+        if (clockInDate !== undefined) attendance.date = clockInDate;
         if (clockInTime !== undefined) attendance.clockInTime = clockInTime;
+        if (clockOutDate !== undefined) attendance.clockOutDate = clockOutDate;
         if (clockOutTime !== undefined) attendance.clockOutTime = clockOutTime;
         if (status !== undefined) attendance.status = status;
 
