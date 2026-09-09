@@ -409,23 +409,29 @@ router.post('/clock-out', async (req, res) => {
     }
 });
 
-// @desc    Get daily staff attendance logs (ONLY users who clocked in via Clock in/out screen)
+// @desc    Get daily staff attendance logs (including all registered staff members)
 // @route   GET /api/auth/attendance
 // @access  Public
 router.get('/attendance', async (req, res) => {
     try {
         let query = {};
-        if (req.query.month) {
+        let targetDate = null;
+        if (req.query.date) {
+            targetDate = req.query.date;
+            query.date = targetDate;
+        } else if (req.query.month) {
             query.date = { $regex: new RegExp(`^${req.query.month}`) };
         } else if (req.query.all !== 'true') {
-            const todayStr = getLocalDateStr();
-            query.date = todayStr;
+            targetDate = getLocalDateStr();
+            query.date = targetDate;
         }
 
         const logs = await Attendance.find(query).sort({ date: -1, updatedAt: -1 });
+        const staffMembers = await Staff.find({ status: { $ne: 'rejected' } }).select('eNo fullName username email avatar role');
 
         const attendanceSheet = logs.map(log => ({
-            id: log._id,
+            id: log._id.toString(),
+            staffId: log.staffId ? log.staffId.toString() : '',
             eNo: log.eNo,
             name: log.fullName,
             email: log.email,
@@ -438,6 +444,31 @@ router.get('/attendance', async (req, res) => {
             clockOutLocation: log.clockOutLocation || '',
             status: log.status || 'Clocked In'
         }));
+
+        // Include placeholder records for staff members who don't have attendance logs for targetDate
+        const effectiveDate = targetDate || getLocalDateStr();
+        const logsKeySet = new Set(logs.map(l => (l.eNo || l.email || '').toLowerCase().trim()));
+
+        staffMembers.forEach(staff => {
+            const key = (staff.eNo || staff.email || staff.username || '').toLowerCase().trim();
+            if (key && !logsKeySet.has(key)) {
+                attendanceSheet.push({
+                    id: `staff_${staff._id}_${effectiveDate}`,
+                    staffId: staff._id.toString(),
+                    eNo: staff.eNo || 'N/A',
+                    name: staff.fullName || staff.username,
+                    email: staff.email,
+                    date: effectiveDate,
+                    clockInDate: '-',
+                    clockOutDate: '-',
+                    clockInTime: '-',
+                    clockOutTime: '-',
+                    clockInLocation: '',
+                    clockOutLocation: '',
+                    status: 'Not Clocked In'
+                });
+            }
+        });
 
         res.json(attendanceSheet);
     } catch (error) {
@@ -537,13 +568,15 @@ router.get('/monthly-attendance', async (req, res) => {
 
             const userLogs = logsByUser.get(key) || [];
             
-            // Dates where user was present
-            const presentDates = new Set(userLogs.map(l => l.date));
+            // Dates where user was present (filtering out unclocked records and duplicate clock-ins on same day via Set)
+            const validClockInLogs = userLogs.filter(l => l.status !== 'Not Clocked In' && l.clockInTime && l.clockInTime !== '-');
+            const presentDates = new Set(validClockInLogs.map(l => l.date));
             const daysPresent = presentDates.size;
             const daysAbsent = Math.max(0, totalWorkingDays - daysPresent);
 
             let totalMinsNum = 0;
             let otMinsNum = 0;
+            let lessMinsNum = 0;
             let shortLeavesCount = 0;
 
             const dailyMinutesMap = new Map();
@@ -556,6 +589,8 @@ router.get('/monthly-attendance', async (req, res) => {
                 totalMinsNum += dayMins;
                 if (dayMins > 540) { // > 9 hours
                     otMinsNum += (dayMins - 540);
+                } else if (dayMins > 0 && dayMins < 540) { // < 9 hours
+                    lessMinsNum += (540 - dayMins);
                 }
                 if (dayMins > 0 && dayMins < 240) { // < 4 hours
                     shortLeavesCount += 1;
@@ -564,6 +599,17 @@ router.get('/monthly-attendance', async (req, res) => {
 
             const formattedTotalHours = formatMinutesToString(totalMinsNum);
             const formattedOtHours = formatMinutesToString(otMinsNum);
+            const formattedLessHours = formatMinutesToString(lessMinsNum);
+
+            const netMinsNum = otMinsNum - lessMinsNum;
+            let formattedActualOtOrLoss = '0 hrs';
+            if (netMinsNum > 0) {
+                formattedActualOtOrLoss = `+${formatMinutesToString(netMinsNum)}`;
+            } else if (netMinsNum < 0) {
+                formattedActualOtOrLoss = `-${formatMinutesToString(Math.abs(netMinsNum))}`;
+            } else {
+                formattedActualOtOrLoss = '0 hrs';
+            }
 
             monthlySummary.push({
                 id: staffObj._id ? staffObj._id.toString() : (staffObj.id || key),
@@ -579,6 +625,8 @@ router.get('/monthly-attendance', async (req, res) => {
                 leaves: daysAbsent,
                 totalHours: formattedTotalHours,
                 otHours: formattedOtHours,
+                lessHours: formattedLessHours,
+                actualOtOrLossHours: formattedActualOtOrLoss,
             });
         };
 
@@ -602,16 +650,39 @@ router.get('/monthly-attendance', async (req, res) => {
 });
 
 
-// @desc    Update attendance log by ID
+// @desc    Update attendance log by ID (or create if synthetic ID for staff member)
 // @route   PUT /api/auth/attendance/:id
 // @access  Public
 router.put('/attendance/:id', async (req, res) => {
     try {
-        const { date, clockInDate, clockInTime, clockOutDate, clockOutTime, status } = req.body;
-        const attendance = await Attendance.findById(req.params.id);
+        const { date, clockInDate, clockInTime, clockOutDate, clockOutTime, status, eNo, name, fullName, email } = req.body;
+        let attendance = null;
+
+        if (!req.params.id.startsWith('staff_')) {
+            attendance = await Attendance.findById(req.params.id);
+        }
 
         if (!attendance) {
-            return res.status(404).json({ message: 'Attendance record not found' });
+            const staff = await Staff.findOne({
+                $or: [
+                    { eNo: eNo ? eNo.trim() : '' },
+                    { email: email ? email.trim() : '' }
+                ]
+            });
+
+            attendance = await Attendance.create({
+                staffId: staff ? staff._id : null,
+                eNo: eNo || (staff ? staff.eNo : 'N/A'),
+                fullName: fullName || name || (staff ? staff.fullName : 'Staff Member'),
+                email: email || (staff ? staff.email : ''),
+                date: date || clockInDate || getLocalDateStr(),
+                clockInTime: clockInTime || '08:30 AM',
+                clockOutDate: clockOutDate || '',
+                clockOutTime: clockOutTime || '-',
+                status: status || 'Clocked In'
+            });
+
+            return res.json({ message: 'Attendance record created successfully', attendance });
         }
 
         if (date !== undefined) attendance.date = date;
