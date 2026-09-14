@@ -32,6 +32,17 @@ const getLocalTimeStr = (date = new Date()) => {
     }).format(date);
 };
 
+const compareENo = (a, b) => {
+    const cleanA = (a || '').trim();
+    const cleanB = (b || '').trim();
+    const isInvalidA = !cleanA || cleanA.toLowerCase() === 'n/a' || cleanA === '-';
+    const isInvalidB = !cleanB || cleanB.toLowerCase() === 'n/a' || cleanB === '-';
+    if (isInvalidA && isInvalidB) return 0;
+    if (isInvalidA) return 1;
+    if (isInvalidB) return -1;
+    return cleanA.localeCompare(cleanB, undefined, { numeric: true, sensitivity: 'base' });
+};
+
 // Generate JWT
 const generateToken = (id, role) => {
     let expiry = '1h'; // Default for staff
@@ -470,6 +481,8 @@ router.get('/attendance', async (req, res) => {
             }
         });
 
+        attendanceSheet.sort((a, b) => compareENo(a.eNo, b.eNo));
+
         res.json(attendanceSheet);
     } catch (error) {
         console.error('Fetch attendance error:', error);
@@ -641,6 +654,8 @@ router.get('/monthly-attendance', async (req, res) => {
             email: log.email,
             avatar: ''
         }));
+
+        monthlySummary.sort((a, b) => compareENo(a.eNo, b.eNo));
 
         res.json(monthlySummary);
     } catch (error) {
