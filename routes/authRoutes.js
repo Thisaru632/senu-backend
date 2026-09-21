@@ -440,21 +440,32 @@ router.get('/attendance', async (req, res) => {
         const logs = await Attendance.find(query).sort({ date: -1, updatedAt: -1 });
         const staffMembers = await Staff.find({ status: { $ne: 'rejected' } }).select('eNo fullName username email avatar role');
 
-        const attendanceSheet = logs.map(log => ({
-            id: log._id.toString(),
-            staffId: log.staffId ? log.staffId.toString() : '',
-            eNo: log.eNo,
-            name: log.fullName,
-            email: log.email,
-            date: log.date,
-            clockInDate: log.date,
-            clockOutDate: log.clockOutDate || (log.status === 'Clocked Out' ? log.date : '-'),
-            clockInTime: log.clockInTime,
-            clockOutTime: log.clockOutTime || 'Active Session',
-            clockInLocation: log.clockInLocation || '',
-            clockOutLocation: log.clockOutLocation || '',
-            status: log.status || 'Clocked In'
-        }));
+        const staffNameMap = new Map();
+        staffMembers.forEach(s => {
+            const key = (s.eNo || '').toLowerCase().trim();
+            if (key) staffNameMap.set(key, s.fullName || s.username);
+        });
+
+        const attendanceSheet = logs.map(log => {
+            const cleanENo = (log.eNo || '').toLowerCase().trim();
+            const dbName = cleanENo ? staffNameMap.get(cleanENo) : null;
+            const finalName = (log.fullName && !log.fullName.includes('@')) ? log.fullName : (dbName || log.fullName);
+            return {
+                id: log._id.toString(),
+                staffId: log.staffId ? log.staffId.toString() : '',
+                eNo: log.eNo,
+                name: finalName,
+                email: log.email,
+                date: log.date,
+                clockInDate: log.date,
+                clockOutDate: log.clockOutDate || (log.status === 'Clocked Out' ? log.date : '-'),
+                clockInTime: log.clockInTime,
+                clockOutTime: log.clockOutTime || 'Active Session',
+                clockInLocation: log.clockInLocation || '',
+                clockOutLocation: log.clockOutLocation || '',
+                status: log.status || 'Clocked In'
+            };
+        });
 
         // Include placeholder records for staff members who don't have attendance logs for targetDate
         const effectiveDate = targetDate || getLocalDateStr();
