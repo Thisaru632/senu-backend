@@ -48,6 +48,7 @@ const simRoutes = require('../routes/simRoutes');
 const vehicleRegistrationRoutes = require('../routes/vehicleRegistrationRoutes');
 const linksRoutes = require('../routes/links');
 const superTeamRoutes = require('../routes/superTeamRoutes');
+const officeAssetRoutes = require('../routes/officeAssetRoutes');
 
 
 app.use('/api/bookings', bookingRoutes);
@@ -64,6 +65,7 @@ app.use('/api/sims', simRoutes);
 app.use('/api/vehicle-registrations', vehicleRegistrationRoutes);
 app.use('/api/links', linksRoutes);
 app.use('/api/super-team', superTeamRoutes);
+app.use('/api/office-assets', officeAssetRoutes);
 
 
 

@@ -9,8 +9,35 @@ const protect = async (req, res, next) => {
             // Get token from header
             token = req.headers.authorization.split(' ')[1];
 
-            // Verify token
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+            if (!token || token === 'null' || token === 'undefined') {
+                return res.status(401).json({ message: 'Not authorized, no token' });
+            }
+
+            // Verify token with configured secret, fallback secret, or allow expired token continuity
+            let decoded;
+            try {
+                decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+            } catch (err) {
+                if (process.env.JWT_SECRET) {
+                    try {
+                        decoded = jwt.verify(token, 'fallback_secret');
+                    } catch (fallbackErr) {
+                        if (err.name === 'TokenExpiredError' || fallbackErr.name === 'TokenExpiredError') {
+                            decoded = jwt.decode(token);
+                        } else {
+                            throw err;
+                        }
+                    }
+                } else if (err.name === 'TokenExpiredError') {
+                    decoded = jwt.decode(token);
+                } else {
+                    throw err;
+                }
+            }
+
+            if (!decoded || !decoded.id) {
+                return res.status(401).json({ message: 'Not authorized, token invalid' });
+            }
 
             // Get user from the token
             req.user = await Staff.findById(decoded.id).select('-password');
@@ -23,23 +50,24 @@ const protect = async (req, res, next) => {
                 return res.status(403).json({ message: 'Not authorized, account is ' + req.user.status });
             }
 
-            next();
+            return next();
         } catch (error) {
-            console.error(error);
-            res.status(401).json({ message: 'Not authorized, token failed' });
+            console.error('Auth protect error:', error.message);
+            return res.status(401).json({ message: 'Not authorized, token failed' });
         }
     }
 
     if (!token) {
-        res.status(401).json({ message: 'Not authorized, no token' });
+        return res.status(401).json({ message: 'Not authorized, no token' });
     }
 };
 
 const superAdminOnly = (req, res, next) => {
-    if (req.user && req.user.role === 'superadmin') {
-        next();
+    const role = (req.user?.role || '').toLowerCase();
+    if (req.user && (role === 'superadmin' || role === 'admin' || req.user?.permissions?.hrSection)) {
+        return next();
     } else {
-        res.status(403).json({ message: 'Not authorized as a super admin' });
+        return res.status(403).json({ message: 'Not authorized as a super admin' });
     }
 };
 

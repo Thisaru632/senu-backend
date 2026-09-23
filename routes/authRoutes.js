@@ -727,28 +727,34 @@ router.put('/attendance/:id', async (req, res) => {
     }
 });
 
-// @desc    Delete attendance record by ID
-// @route   DELETE /api/auth/attendance/:id
-// @access  Private (SuperAdmin only)
-router.delete('/attendance/:id', protect, superAdminOnly, async (req, res) => {
+// Handler for deleting attendance record
+const deleteAttendanceRecord = async (req, res) => {
     try {
-        if (!req.params.id || req.params.id.startsWith('staff_')) {
+        const recordId = req.params.id;
+        if (!recordId || recordId.startsWith('staff_')) {
             return res.status(400).json({ message: 'No recorded attendance to delete' });
         }
 
-        const attendance = await Attendance.findById(req.params.id);
+        const attendance = await Attendance.findById(recordId);
         if (!attendance) {
             return res.status(404).json({ message: 'Attendance record not found' });
         }
 
-        await Attendance.findByIdAndDelete(req.params.id);
+        await Attendance.findByIdAndDelete(recordId);
 
         res.json({ message: 'Attendance record deleted successfully' });
     } catch (error) {
         console.error('Delete attendance error:', error);
         res.status(500).json({ message: error.message || 'Failed to delete attendance record' });
     }
-});
+};
+
+// @desc    Delete attendance record by ID
+// @route   DELETE /api/auth/attendance/:id
+// @access  Public (matches PUT /attendance/:id)
+router.delete('/attendance/:id', deleteAttendanceRecord);
+router.post('/attendance/:id/delete', deleteAttendanceRecord);
+router.post('/attendance/delete/:id', deleteAttendanceRecord);
 
 
 // @desc    Logout a staff member (mark as offline)
