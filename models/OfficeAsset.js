@@ -2,6 +2,16 @@ const mongoose = require('mongoose');
 
 const OfficeAssetSchema = new mongoose.Schema(
     {
+        no: {
+            type: String,
+            trim: true,
+            default: '',
+        },
+        image: {
+            type: String,
+            trim: true,
+            default: '',
+        },
         assetType: {
             type: String,
             trim: true,
@@ -44,7 +54,17 @@ const OfficeAssetSchema = new mongoose.Schema(
             enum: ['Y', 'N'],
             default: 'Y',
         },
+        billReceipt: {
+            type: String,
+            trim: true,
+            default: '',
+        },
         warranty: {
+            type: String,
+            trim: true,
+            default: '',
+        },
+        warrantyReceipt: {
             type: String,
             trim: true,
             default: '',
@@ -81,9 +101,18 @@ const OfficeAssetSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ['In Use', 'Not in Use'],
+            enum: ['In Use', 'Not in Use', 'Sold'],
             default: 'In Use',
             trim: true,
+        },
+        soldPrice: {
+            type: Number,
+            default: 0,
+        },
+        soldDate: {
+            type: String,
+            trim: true,
+            default: '',
         },
     },
     { timestamps: true }

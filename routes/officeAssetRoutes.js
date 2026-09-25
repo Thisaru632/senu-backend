@@ -102,6 +102,8 @@ function normalizeAssetRecord(raw) {
     }
 
     return {
+        no: raw.no !== undefined && raw.no !== null ? String(raw.no).trim() : '',
+        image: raw.image ? String(raw.image).trim() : '',
         assetType: raw.assetType ? String(raw.assetType).trim() : '',
         description: raw.description ? String(raw.description).trim() : '',
         assetCode: raw.assetCode ? String(raw.assetCode).trim() : '',
@@ -114,11 +116,21 @@ function normalizeAssetRecord(raw) {
         totalValue: totalValue,
         purchaseDate: raw.purchaseDate ? formatExcelDate(raw.purchaseDate) : '',
         billAvailability: billAvailability,
+        billReceipt: raw.billReceipt ? String(raw.billReceipt).trim() : '',
         warranty: raw.warranty ? String(raw.warranty).trim() : '',
+        warrantyReceipt: raw.warrantyReceipt ? String(raw.warrantyReceipt).trim() : '',
         supplier: raw.supplier ? String(raw.supplier).trim() : '',
         contactNo: raw.contactNo ? String(raw.contactNo).trim() : '',
         invNo: raw.invNo ? String(raw.invNo).trim() : '',
-        status: raw.status && (String(raw.status).trim().toLowerCase() === 'not in use' || String(raw.status).trim().toLowerCase() === 'notinuse' || String(raw.status).trim().toLowerCase() === 'no') ? 'Not in Use' : 'In Use',
+        status: (() => {
+            if (!raw.status) return 'In Use';
+            const s = String(raw.status).trim().toLowerCase();
+            if (s === 'not in use' || s === 'notinuse' || s === 'no') return 'Not in Use';
+            if (s === 'sold') return 'Sold';
+            return 'In Use';
+        })(),
+        soldPrice: parseNumeric(raw.soldPrice, 0),
+        soldDate: raw.soldDate ? String(raw.soldDate).trim() : '',
     };
 }
 
@@ -150,7 +162,7 @@ router.get('/users', async (req, res) => {
  */
 router.get('/', async (req, res) => {
     try {
-        const assets = await OfficeAsset.find().sort({ createdAt: -1 });
+        const assets = await OfficeAsset.find().sort({ _id: -1 });
         res.status(200).json({
             success: true,
             count: assets.length,
@@ -260,7 +272,7 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
 
         const firstRow = (rows[0] || []).map((c) => String(c || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
         const hasHeader = firstRow.some((col) =>
-            ['assettype', 'type', 'description', 'descreption', 'assetcode', 'qty', 'location', 'value', 'totalvalue', 'invno'].includes(col)
+            ['no', 'slno', 'assettype', 'type', 'description', 'descreption', 'assetcode', 'qty', 'location', 'value', 'totalvalue', 'invno'].includes(col)
         );
 
         let dataRows = rows;
@@ -268,7 +280,23 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
 
         if (hasHeader) {
             firstRow.forEach((col, index) => {
-                if (col.includes('type')) headerIndexMap['assetType'] = index;
+                const rawCol = String((rows[0] || [])[index] || '').trim().toLowerCase();
+                const rawColClean = rawCol.replace(/[^a-z0-9]/g, '');
+                if (
+                    col === 'no' ||
+                    col === 'slno' ||
+                    col === 'srno' ||
+                    col === 'itemno' ||
+                    col === 'num' ||
+                    col === 'number' ||
+                    rawCol === 'no' ||
+                    rawCol === 'no.' ||
+                    rawCol === '#' ||
+                    rawColClean === 'no' ||
+                    rawColClean === 'slno' ||
+                    rawColClean === 'itemno'
+                ) headerIndexMap['no'] = index;
+                else if (col.includes('type')) headerIndexMap['assetType'] = index;
                 else if (col.includes('descr')) headerIndexMap['description'] = index;
                 else if (col.includes('code')) headerIndexMap['assetCode'] = index;
                 else if (col.includes('loc')) headerIndexMap['location'] = index;
@@ -284,6 +312,12 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
                 else if (col.includes('assign') || col.includes('user') || col.includes('owner') || col.includes('staff') || col.includes('employee')) headerIndexMap['assignedTo'] = index;
                 else if (col.includes('status') || col.includes('inuse') || col.includes('usage') || col.includes('use')) headerIndexMap['status'] = index;
             });
+            if (headerIndexMap['no'] === undefined) {
+                const mappedIndices = Object.values(headerIndexMap).filter((v) => typeof v === 'number');
+                if (mappedIndices.length > 0 && Math.min(...mappedIndices) > 0) {
+                    headerIndexMap['no'] = 0;
+                }
+            }
             dataRows = rows.slice(1);
         }
 
@@ -297,6 +331,7 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
             let assetObj = {};
             if (hasHeader && Object.keys(headerIndexMap).length > 0) {
                 assetObj = {
+                    no: headerIndexMap['no'] !== undefined ? row[headerIndexMap['no']] : '',
                     assetType: headerIndexMap['assetType'] !== undefined ? row[headerIndexMap['assetType']] : row[0],
                     description: headerIndexMap['description'] !== undefined ? row[headerIndexMap['description']] : row[1],
                     assetCode: headerIndexMap['assetCode'] !== undefined ? row[headerIndexMap['assetCode']] : row[2],
@@ -315,21 +350,22 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
                 };
             } else {
                 assetObj = {
-                    assetType: row[0],
-                    description: row[1],
-                    assetCode: row[2],
-                    location: row[3],
-                    assignedTo: row[13] || 'Unassigned',
-                    qty: row[4],
-                    value: row[5],
-                    totalValue: row[6],
-                    purchaseDate: row[7],
-                    billAvailability: row[8],
-                    warranty: row[9],
-                    supplier: row[10],
-                    contactNo: row[11],
-                    invNo: row[12],
-                    status: row[14] || 'In Use',
+                    no: row[0],
+                    assetType: row[1],
+                    description: row[2],
+                    assetCode: row[3],
+                    location: row[4],
+                    assignedTo: row[14] || 'Unassigned',
+                    qty: row[5],
+                    value: row[6],
+                    totalValue: row[7],
+                    purchaseDate: row[8],
+                    billAvailability: row[9],
+                    warranty: row[10],
+                    supplier: row[11],
+                    contactNo: row[12],
+                    invNo: row[13],
+                    status: row[15] || 'In Use',
                 };
             }
 
@@ -344,7 +380,7 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
         }
 
         const savedDocs = await OfficeAsset.insertMany(assetsToInsert);
-        const allAssets = await OfficeAsset.find().sort({ createdAt: -1 });
+        const allAssets = await OfficeAsset.find().sort({ _id: -1 });
 
         res.status(201).json({
             success: true,
@@ -388,15 +424,25 @@ router.patch('/:id/assign', async (req, res) => {
 
 /**
  * @route   PATCH /api/office-assets/:id/status
- * @desc    Toggle or update the usage status of an asset (In Use / Not in Use)
+ * @desc    Toggle or update the usage status of an asset (In Use / Not in Use / Sold)
  */
 router.patch('/:id/status', async (req, res) => {
     try {
-        const { status } = req.body;
-        const validStatus = status === 'Not in Use' ? 'Not in Use' : 'In Use';
+        const { status, soldPrice, soldDate } = req.body;
+        let validStatus = 'In Use';
+        if (status === 'Not in Use') validStatus = 'Not in Use';
+        else if (status === 'Sold') validStatus = 'Sold';
+        else validStatus = 'In Use';
+
+        const updateData = { status: validStatus };
+        if (validStatus === 'Sold') {
+            updateData.soldPrice = parseNumeric(soldPrice, 0);
+            updateData.soldDate = soldDate ? String(soldDate).trim() : new Date().toISOString().split('T')[0];
+        }
+
         const updated = await OfficeAsset.findByIdAndUpdate(
             req.params.id,
-            { status: validStatus },
+            updateData,
             { new: true }
         );
         if (!updated) {
