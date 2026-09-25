@@ -131,6 +131,7 @@ function normalizeAssetRecord(raw) {
         })(),
         soldPrice: parseNumeric(raw.soldPrice, 0),
         soldDate: raw.soldDate ? String(raw.soldDate).trim() : '',
+        lastVerifiedDate: raw.lastVerifiedDate ? formatExcelDate(raw.lastVerifiedDate) : '',
     };
 }
 
@@ -309,6 +310,7 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
                 else if (col.includes('supp') || col.includes('vend')) headerIndexMap['supplier'] = index;
                 else if (col.includes('contact') || col.includes('phone') || col.includes('mobile')) headerIndexMap['contactNo'] = index;
                 else if (col.includes('inv')) headerIndexMap['invNo'] = index;
+                else if (col.includes('verif') || col.includes('veryf')) headerIndexMap['lastVerifiedDate'] = index;
                 else if (col.includes('assign') || col.includes('user') || col.includes('owner') || col.includes('staff') || col.includes('employee')) headerIndexMap['assignedTo'] = index;
                 else if (col.includes('status') || col.includes('inuse') || col.includes('usage') || col.includes('use')) headerIndexMap['status'] = index;
             });
@@ -346,6 +348,7 @@ router.post('/upload-csv', upload.single('file'), async (req, res) => {
                     supplier: headerIndexMap['supplier'] !== undefined ? row[headerIndexMap['supplier']] : row[10],
                     contactNo: headerIndexMap['contactNo'] !== undefined ? row[headerIndexMap['contactNo']] : row[11],
                     invNo: headerIndexMap['invNo'] !== undefined ? row[headerIndexMap['invNo']] : row[12],
+                    lastVerifiedDate: headerIndexMap['lastVerifiedDate'] !== undefined ? row[headerIndexMap['lastVerifiedDate']] : '',
                     status: headerIndexMap['status'] !== undefined ? row[headerIndexMap['status']] : (row[14] || 'In Use'),
                 };
             } else {

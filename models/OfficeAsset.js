@@ -114,6 +114,11 @@ const OfficeAssetSchema = new mongoose.Schema(
             trim: true,
             default: '',
         },
+        lastVerifiedDate: {
+            type: String,
+            trim: true,
+            default: '',
+        },
     },
     { timestamps: true }
 );
