@@ -678,7 +678,7 @@ router.get('/monthly-attendance', async (req, res) => {
 
 // @desc    Update attendance log by ID (or create if synthetic ID for staff member)
 // @route   PUT /api/auth/attendance/:id
-// @access  SuperAdmin Only
+// @access  SuperAdmin and Admin
 router.put('/attendance/:id', async (req, res) => {
     try {
         if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -688,8 +688,9 @@ router.put('/attendance/:id', async (req, res) => {
                     const decoded = jwt.decode(token);
                     if (decoded && decoded.id) {
                         const caller = await Staff.findById(decoded.id).select('role');
-                        if (caller && (caller.role || '').toLowerCase() !== 'superadmin') {
-                            return res.status(403).json({ message: 'Only SuperAdmin can edit attendance records' });
+                        const callerRole = (caller?.role || '').toLowerCase();
+                        if (caller && callerRole !== 'superadmin' && callerRole !== 'admin') {
+                            return res.status(403).json({ message: 'Only Admin and SuperAdmin can edit attendance records' });
                         }
                     }
                 }
@@ -747,6 +748,24 @@ router.put('/attendance/:id', async (req, res) => {
 // Handler for deleting attendance record
 const deleteAttendanceRecord = async (req, res) => {
     try {
+        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+            try {
+                const token = req.headers.authorization.split(' ')[1];
+                if (token && token !== 'null' && token !== 'undefined') {
+                    const decoded = jwt.decode(token);
+                    if (decoded && decoded.id) {
+                        const caller = await Staff.findById(decoded.id).select('role');
+                        const callerRole = (caller?.role || '').toLowerCase();
+                        if (caller && callerRole !== 'superadmin') {
+                            return res.status(403).json({ message: 'Only SuperAdmin can delete attendance records' });
+                        }
+                    }
+                }
+            } catch (authErr) {
+                console.warn('Attendance delete auth check error:', authErr);
+            }
+        }
+
         const recordId = req.params.id;
         if (!recordId || recordId.startsWith('staff_')) {
             return res.status(400).json({ message: 'No recorded attendance to delete' });
