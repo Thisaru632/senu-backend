@@ -46,17 +46,6 @@ const attendanceSchema = new mongoose.Schema({
         type: String,
         enum: ['Clocked In', 'Clocked Out'],
         default: 'Clocked In'
-    },
-    approvedBySuperAdmin: {
-        type: Boolean,
-        default: false
-    },
-    approvedAt: {
-        type: Date
-    },
-    approvedBy: {
-        type: String,
-        default: ''
     }
 }, { timestamps: true });
 

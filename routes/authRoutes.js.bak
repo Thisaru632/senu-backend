@@ -463,8 +463,7 @@ router.get('/attendance', async (req, res) => {
                 clockOutTime: log.clockOutTime || 'Active Session',
                 clockInLocation: log.clockInLocation || '',
                 clockOutLocation: log.clockOutLocation || '',
-                status: log.status || 'Clocked In',
-                approvedBySuperAdmin: !!log.approvedBySuperAdmin
+                status: log.status || 'Clocked In'
             };
         });
 
@@ -607,19 +606,10 @@ router.get('/monthly-attendance', async (req, res) => {
             const dailyMinutesMap = new Map();
             userLogs.forEach(l => {
                 const mins = calculateDurationMinutes(l.clockInTime, l.clockOutTime);
-                const prev = dailyMinutesMap.get(l.date) || { mins: 0, isApproved: false };
-                prev.mins += mins;
-                if (l.approvedBySuperAdmin) prev.isApproved = true;
-                dailyMinutesMap.set(l.date, prev);
+                dailyMinutesMap.set(l.date, (dailyMinutesMap.get(l.date) || 0) + mins);
             });
 
-            dailyMinutesMap.forEach((dayObj) => {
-                const dayMins = dayObj.mins;
-                // If daily worked hours exceed 19 hours (1140 minutes) and NOT approved by super admin, do NOT count as valid hours!
-                if (dayMins > 1140 && !dayObj.isApproved) {
-                    return; // Excluded until approved by Super Admin
-                }
-
+            dailyMinutesMap.forEach((dayMins) => {
                 totalMinsNum += dayMins;
                 if (dayMins > 540) { // > 9 hours
                     otMinsNum += (dayMins - 540);
@@ -745,10 +735,6 @@ router.put('/attendance/:id', async (req, res) => {
         if (clockOutDate !== undefined) attendance.clockOutDate = clockOutDate;
         if (clockOutTime !== undefined) attendance.clockOutTime = clockOutTime;
         if (status !== undefined) attendance.status = status;
-        if (req.body.approvedBySuperAdmin !== undefined) {
-            attendance.approvedBySuperAdmin = req.body.approvedBySuperAdmin;
-            attendance.approvedAt = req.body.approvedBySuperAdmin ? new Date() : null;
-        }
 
         await attendance.save();
 
@@ -756,53 +742,6 @@ router.put('/attendance/:id', async (req, res) => {
     } catch (error) {
         console.error('Update attendance error:', error);
         res.status(500).json({ message: error.message || 'Failed to update attendance record' });
-    }
-});
-
-// @desc    Approve attendance record(s) by day or IDs (Super Admin approval for >19h)
-// @route   POST /api/auth/attendance/approve-day
-router.post('/attendance/approve-day', async (req, res) => {
-    try {
-        const { eNo, email, date, ids, approved } = req.body;
-        const isApproved = approved !== false; // default true
-
-        if (Array.isArray(ids) && ids.length > 0) {
-            await Attendance.updateMany(
-                { _id: { $in: ids } },
-                { $set: { approvedBySuperAdmin: isApproved, approvedAt: isApproved ? new Date() : null } }
-            );
-        } else if (date) {
-            const query = { date };
-            if (eNo && eNo !== 'N/A') query.eNo = eNo;
-            else if (email) query.email = email;
-            await Attendance.updateMany(
-                query,
-                { $set: { approvedBySuperAdmin: isApproved, approvedAt: isApproved ? new Date() : null } }
-            );
-        }
-
-        res.json({ message: isApproved ? 'Attendance approved successfully' : 'Attendance approval revoked successfully' });
-    } catch (err) {
-        console.error('Approve attendance error:', err);
-        res.status(500).json({ message: err.message || 'Failed to approve attendance' });
-    }
-});
-
-// @desc    Approve single attendance record by ID
-// @route   PUT /api/auth/attendance/:id/approve
-router.put('/attendance/:id/approve', async (req, res) => {
-    try {
-        const attendance = await Attendance.findById(req.params.id);
-        if (!attendance) {
-            return res.status(404).json({ message: 'Attendance record not found' });
-        }
-        attendance.approvedBySuperAdmin = true;
-        attendance.approvedAt = new Date();
-        await attendance.save();
-        res.json({ message: 'Attendance record approved successfully', attendance });
-    } catch (err) {
-        console.error('Approve record error:', err);
-        res.status(500).json({ message: err.message || 'Failed to approve record' });
     }
 });
 
