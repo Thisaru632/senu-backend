@@ -181,6 +181,7 @@ router.post('/login', async (req, res) => {
                 username: staff.username,
                 fullName: staff.fullName,
                 email: staff.email,
+                eNo: staff.eNo,
                 role: staff.role,
                 permissions: staff.permissions,
                 token: generateToken(staff._id, staff.role)
