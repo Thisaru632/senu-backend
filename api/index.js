@@ -49,6 +49,8 @@ const vehicleRegistrationRoutes = require('../routes/vehicleRegistrationRoutes')
 const linksRoutes = require('../routes/links');
 const superTeamRoutes = require('../routes/superTeamRoutes');
 const officeAssetRoutes = require('../routes/officeAssetRoutes');
+const dispatchViewRoutes = require('../routes/dispatchViewRoutes');
+const inquiryViewRoutes = require('../routes/inquiryViewRoutes');
 
 
 app.use('/api/bookings', bookingRoutes);
@@ -66,6 +68,8 @@ app.use('/api/vehicle-registrations', vehicleRegistrationRoutes);
 app.use('/api/links', linksRoutes);
 app.use('/api/super-team', superTeamRoutes);
 app.use('/api/office-assets', officeAssetRoutes);
+app.use('/api/dispatch-view', dispatchViewRoutes);
+app.use('/api/inquiry-view', inquiryViewRoutes);
 
 
 

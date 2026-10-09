@@ -427,7 +427,9 @@ router.get('/attendance', async (req, res) => {
     try {
         let query = {};
         let targetDate = null;
-        if (req.query.date) {
+        if (req.query.startDate && req.query.endDate) {
+            query.date = { $gte: req.query.startDate, $lte: req.query.endDate };
+        } else if (req.query.date) {
             targetDate = req.query.date;
             query.date = targetDate;
         } else if (req.query.month) {
